@@ -1,7 +1,0 @@
-{
-  "ticket_key": "PLAYG-1961",
-  "command": "!natural",
-  "command_args": "help_comment.json",
-  "source": "repository_dispatch",
-  "doc_path": "docs/{ticket_key}"
-}
