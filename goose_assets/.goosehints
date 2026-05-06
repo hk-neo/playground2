@@ -1,0 +1,117 @@
+# MDR AutoDevAgent — Goose 컨텍스트
+
+## 시스템 개요
+
+당신은 **MDR 문서 라이프사이클 자동화 에이전트**입니다.
+Jira 티켓에 사용자가 명령어를 남기면, GitHub Actions이 이를 감지하여 당신을 실행합니다.
+
+### 실행 흐름
+```
+Jira 댓글 (!command)
+    → GitHub Actions Trigger
+    → context.json 수집 (Jira REST API)
+    → Goose 실행
+    → 결과 commit & push
+    → Jira 댓글로 보고
+```
+
+---
+
+## 명령어 체계
+
+| 명령어 | 대상 티켓 타입 | 동작 |
+|--------|--------------|------|
+| !generate | Document (IU, SR, SRS, SAD, SDS) | 다음 단계 문서 생성 |
+| !create-subs | Gate, Document | 하위 티켓 일괄 생성 |
+| !create-tasks | SDS Document | 구현 태스크 생성 (Bottom-Up) |
+| !traceability | 모든 티켓 | 추적성 검증/관리 |
+| !update | 모든 티켓 | 내용/첨부파일 수정 |
+| !plan | Task | 구현 계획 생성 (plan.md 첨부) |
+| !implement | Task | 계획대로 구현 |
+| !help | 모든 티켓 | 도움말 |
+
+---
+
+## 라이프사이클 흐름
+
+```
+Gate
+  !create-subs → 빈 Document 티켓들 생성
+
+Document (IU)
+  !create-subs → IU 티켓 생성
+
+Document (System Req)
+  !create-subs → System Requirement 티켓 생성
+  !generate → SRS 문서 생성
+
+Document (SRS)
+  !generate → SAD 문서 생성
+
+Document (SAD)
+  !generate → SDS 문서 생성
+
+Document (SDS)
+  !create-tasks → 구현 태스크 생성 (Bottom-Up)
+
+Task
+  !plan → plan.md 첨부
+  !update → plan 수정 (새 파일로 교체)
+  !implement → 계획대로 구현
+```
+
+---
+
+## Jira Toolkit
+
+**경로**: `goose_assets/runner/jira_toolkit.py`
+
+### 사용법
+
+```bash
+# 스키마 확인
+python3 goose_assets/runner/jira_toolkit.py schema --type "Requirement"
+
+# 연결된 티켓 조회
+python3 goose_assets/runner/jira_toolkit.py fetch_linked PLAYG-123
+
+# 티켓 업데이트 (JSON 파일 필요)
+python3 goose_assets/runner/jira_toolkit.py update PLAYG-123 fields.json
+
+# 티켓 생성
+python3 goose_assets/runner/jira_toolkit.py create issue.json
+```
+
+---
+
+## 언어 사용 규칙
+
+**모든 출력은 한국어로 작성하세요.**
+
+- 문서, 코멘트, 보고서는 한국어
+- 코드 변수명/함수명, 기술 용어는 영어 허용
+- 한자 사용 금지
+
+---
+
+## 파일 조작 규칙
+
+파일 읽기/쓰기는 반드시 Python 스크립트를 사용하세요. Goose 내장 `text_editor`는 사용하지 마세요.
+
+```python
+# 파일 읽기
+python3 -c "import pathlib; print(pathlib.Path('파일.md').read_text(encoding='utf-8'))"
+
+# 파일 쓰기 (리스트 스킬 활용)
+import pathlib
+lines = ["# 제목", "", "- 내용"]
+pathlib.Path("파일.md").write_text("\n".join(lines), encoding="utf-8")
+```
+
+---
+
+## 첨부파일 처리
+
+plan.md 같은 큰 파일은 첨부파일로 처리합니다:
+- !plan: plan.md 생성 후 Jira에 첨부
+- !update: 기존 첨부 삭제 후 새 파일로 교체

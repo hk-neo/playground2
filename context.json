@@ -1,0 +1,7 @@
+{
+  "ticket_key": "PLAYG-1961",
+  "command": "!help",
+  "command_args": "help",
+  "source": "repository_dispatch",
+  "doc_path": "docs/{ticket_key}"
+}

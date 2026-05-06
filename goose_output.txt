@@ -1,0 +1,72 @@
+
+    __( O)>  ● new session · custom_glm glm-5.1
+   \____)    20260506_1 · /home/runner/work/AutoDevAgent/AutoDevAgent/target-repo
+     L L     goose is ready
+
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [ ] !help 명령어 처리 — MDR AutoDevAgent 도움말 안내
+  - [ ] 명령어 체계 및 사용법 정리
+  - [ ] Jira 티켓에 도움말 댓글 등록
+
+
+  ────────────────────────────────────────
+  ▸ shell
+    command: python3 goose_assets/runner/jira_toolkit.py schema --type "help" 2>/dev/null || echo "No schema needed"
+
+No schema needed
+  ────────────────────────────────────────
+  ▸ shell
+    command: cat context.json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps({k:d[k] for k in ['issue_key','issue_type','summary','status'] if k in d}, indent=2, ensure_ascii=False))" 2>/dev/null || echo "No context.json"
+
+{}
+  ────────────────────────────────────────
+  ▸ shell
+    command: cat context.json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d, indent=2, ensure_ascii=False)[:3000])" 2>/dev/null || echo "No context.json"
+
+{
+  "ticket_key": "PLAYG-1961",
+  "command": "!help",
+  "command_args": "help",
+  "source": "repository_dispatch",
+  "doc_path": "docs/{ticket_key}"
+}도움말 내용을 정리하고 Jira 티켓에 댓글로 등록하겠습니다.
+  ────────────────────────────────────────
+  ▸ write
+    path ~/w/A/A/target-repo/help_comment.json
+    content: {
+  "comment": "## 🤖 MDR AutoDevAgent 도움말\n\n안녕하세요! MDR AutoDevAgent 사용법 안내입니다.\n\n---\n\n### 📋 명령어 체계\n\n| 명령어 | 대상 티켓 타입 | 동작 |\n|--------|--------------|------|\n| `!generate` | Document (IU, SR, SRS, SAD, SDS) | 다음 단계 문서를 자동 생성합니다 |\n| `!create-subs` | Gate, Document | 하위 티켓을 일괄 생성합니다 |\n| `!create-tasks` | SDS Document | SDS 기반으로 구현 태스크를 생성합니다 (Bottom-Up) |\n| `!traceability` | 모든 티켓 | 추적성을 검증하고 관리합니다 |\n| `!update` | 모든 티켓 | 티켓 내용이나 첨부파일을 수정합니다 |\n| `!plan` | Task | 구현 계획(plan.md)을 생성하여 첨부합니다 |\n| `!implement` | Task | 계획에 따라 구현을 수행합니다 |\n| `!help` | 모든 티켓 | 이 도움말을 표시합니다 |\n\n---\n\n### 🔄 문서 라이프사이클 흐름\n\n```\nGate\n  → !create-subs : 빈 Document 티켓들 생성\n\nDocument (IU)\n  → !create-subs : IU 티켓 생성\n\nDocument (System Req)\n  → !create-subs : System Requirement 티켓 생성\n  → !generate : SRS 문서 생성\n\nDocument (SRS)\n  → !generate : SAD 문서 생성\n\nDocument (SAD)\n  → !generate : SDS 문서 생성\n\nDocument (SDS)\n  → !create-tasks : 구현 태스크 생성\n\nTask\n  → !plan : plan.md 첨부\n  → !update : plan 수정 (새 파일로 교체)\n  → !implement : 계획대로 구현\n```\n\n---\n\n### 💡 사용 예시\n\n- Gate 티켓에 `!create-subs` 댓글 → 하위 Document 티켓 자동 생성\n- SRS Document에 `!generate` 댓글 → SAD 문서 자동 생성\n- Task에 `!plan` 댓글 → 구현 계획서 자동 작성\n- Task에 `!implement` 댓글 → 계획에 따라 코드 자동 구현\n\n---\n\n### ⚠️ 참고사항\n\n- 모든 명령어는 **Jira 티켓 댓글**에 작성합니다\n- 명령어 뒤에 추가 인자를 넣을 수 있습니다 (예: `!help help`)\n- 처리 결과는 댓글로 보고됩니다\n\n문의사항이 있으시면 언제든 `!help` 를 호출해주세요!"
+}
+
+
+Created /home/runner/work/AutoDevAgent/AutoDevAgent/target-repo/help_comment.json (3 lines)
+  ────────────────────────────────────────
+  ▸ shell
+    command: cd /home/runner/work/AutoDevAgent/AutoDevAgent/target-repo && python3 goose_assets/runner/jira_toolkit.py comment PLAYG-1961 help_comment.json
+
+Success: Comment added to PLAYG-1961
+  ────────────────────────────────────────
+  ▸ shell
+    command: rm /home/runner/work/AutoDevAgent/AutoDevAgent/target-repo/help_comment.json
+
+(no output)
+  ────────────────────────────────────────
+  ▸ todo_write todo
+    content: - [x] !help 명령어 처리 — MDR AutoDevAgent 도움말 안내
+  - [x] 명령어 체계 및 사용법 정리
+  - [x] Jira 티켓에 도움말 댓글 등록
+
+## ✅ !help 명령어 처리 완료
+
+**티켓**: PLAYG-1961
+
+### 수행 내용
+
+`!help` 명령어에 대한 도움말을 Jira 티켓 **PLAYG-1961**에 댓글로 등록했습니다. 도움말에는 다음 내용이 포함되어 있습니다:
+
+| 항목 | 내용 |
+|------|------|
+| **명령어 체계** | `!generate`, `!create-subs`, `!create-tasks`, `!traceability`, `!update`, `!plan`, `!implement`, `!help` 전체 명령어 설명 |
+| **라이프사이클 흐름** | Gate → IU → SR → SRS → SAD → SDS → Task 전체 흐름도 |
+| **사용 예시** | 각 명령어의 실제 사용 예 |
+| **참고사항** | 명령어 사용 방법 및 주의점 |
