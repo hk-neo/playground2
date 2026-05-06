@@ -1,0 +1,7 @@
+
+# AutoDevAgent temporary files
+goose_output.txt
+goose_clean.txt
+goose_prompt.txt
+context.json
+goose_assets/
