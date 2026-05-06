@@ -173,12 +173,12 @@ IEC 62304 Section 4.3에 따라 Software Safety Class를 다음과 같이 판단
 
 | 본 문서 항목 | 하위 Jira 티켓 | 관계 |
 |-------------|---------------|------|
-| 3. 의료기기 분류 | PLAYG-1991 (CL-01 의료기기 분류 등급) | specified by |
-| 4. Software Safety Classification | PLAYG-1992 (CL-02 Software Safety Class) | specified by |
-| 3.3 분류 판단 근거 | PLAYG-1993 (CL-03 분류 근거 및 판단 논리) | specified by |
-| 5.1 의료기기 관련 규제 | PLAYG-1994 (CL-04 적용 규제 및 표준) | specified by |
-| 5.2 소프트웨어 관련 표준 | PLAYG-1995 (CL-05 소프트웨어 표준 준수) | specified by |
-| 5.3~5.4 데이터 및 보안 표준 | PLAYG-1996 (CL-06 데이터 및 보안 표준) | specified by |
+| 3. 의료기기 분류 | PLAYG-1997 (CL-01 의료기기 분류 등급) | specified by |
+| 4. Software Safety Classification | PLAYG-1998 (CL-02 Software Safety Class) | specified by |
+| 3.3 분류 판단 근거 | PLAYG-1999 (CL-03 분류 근거 및 판단 논리) | specified by |
+| 5.1 의료기기 관련 규제 | PLAYG-2000 (CL-04 적용 규제 및 표준) | specified by |
+| 5.2 소프트웨어 관련 표준 | PLAYG-2001 (CL-05 소프트웨어 표준 준수) | specified by |
+| 5.3~5.4 데이터 및 보안 표준 | PLAYG-2002 (CL-06 데이터 및 보안 표준) | specified by |
 
 ---
 
