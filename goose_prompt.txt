@@ -117,15 +117,15 @@ plan.md 같은 큰 파일은 첨부파일로 처리합니다:
 - !update: 기존 첨부 삭제 후 새 파일로 교체
 
 ## 현재 명령어
-!help help
+!natural help_comment.json
 
 ## 스킬 지시사항
-No skill found for command: help
+No skill found for command: natural
 
 ## 티켓 컨텍스트
 - Ticket: PLAYG-1961
-- Command: !help
-- Args: help
+- Command: !natural
+- Args: help_comment.json
 - Document Path: docs/{ticket_key}
 
 위 스킬 지시사항에 따라 작업을 수행하고, 한국어로 결과를 보고하세요.
