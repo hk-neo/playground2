@@ -1,0 +1,93 @@
+[
+  {
+    "key": "PLAYG-2208",
+    "summary": "[HAZ-01] 영상 왜곡 또는 부정확한 영상 표시",
+    "severity": "serious",
+    "p1": "occasional",
+    "p2": "remote"
+  },
+  {
+    "key": "PLAYG-2209",
+    "summary": "[HAZ-02] MPR 단면 영상 렌더링 왜곡",
+    "severity": "serious",
+    "p1": "occasional",
+    "p2": "remote"
+  },
+  {
+    "key": "PLAYG-2210",
+    "summary": "[HAZ-03] 3D 볼륨 렌더링 부정확",
+    "severity": "minor",
+    "p1": "occasional",
+    "p2": "remote"
+  },
+  {
+    "key": "PLAYG-2211",
+    "summary": "[HAZ-04] 측정값(거리, 각도) 부정확",
+    "severity": "serious",
+    "p1": "occasional",
+    "p2": "remote"
+  },
+  {
+    "key": "PLAYG-2212",
+    "summary": "[HAZ-05] 환자 정보 오표시",
+    "severity": "serious",
+    "p1": "occasional",
+    "p2": "remote"
+  },
+  {
+    "key": "PLAYG-2213",
+    "summary": "[HAZ-06] 영상 로딩 지연 또는 응답 없음",
+    "severity": "negligible",
+    "p1": "occasional",
+    "p2": "remote"
+  },
+  {
+    "key": "PLAYG-2214",
+    "summary": "[HAZ-07] 비지원 브라우저에서 오동작",
+    "severity": "minor",
+    "p1": "occasional",
+    "p2": "remote"
+  },
+  {
+    "key": "PLAYG-2215",
+    "summary": "[HAZ-08] 환자 데이터 유출",
+    "severity": "serious",
+    "p1": "remote",
+    "p2": "improvable"
+  },
+  {
+    "key": "PLAYG-2216",
+    "summary": "[HAZ-09] 비의료진에 의한 영상 오해석",
+    "severity": "serious",
+    "p1": "remote",
+    "p2": "improvable"
+  },
+  {
+    "key": "PLAYG-2217",
+    "summary": "[HAZ-10] 비치과 영역 영상 오해석",
+    "severity": "minor",
+    "p1": "remote",
+    "p2": "improvable"
+  },
+  {
+    "key": "PLAYG-2218",
+    "summary": "[HAZ-11] MPR-3D 뷰 간 위치 동기화 오류",
+    "severity": "minor",
+    "p1": "remote",
+    "p2": "improvable"
+  },
+  {
+    "key": "PLAYG-2219",
+    "summary": "[HAZ-12] 부적절한 WL/WW 설정으로 진단 정보 손실",
+    "severity": "minor",
+    "p1": "occasional",
+    "p2": "remote"
+  },
+  {
+    "key": "PLAYG-2220",
+    "summary": "[HAZ-13] 소프트웨어 오류 발생 시 사용자 혼란",
+    "severity": "negligible",
+    "p1": "occasional",
+    "p2": "remote"
+  }
+]

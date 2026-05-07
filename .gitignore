@@ -348,3 +348,14 @@ goose_assets/
 config/
 config/
 config/
+
+# AutoDevAgent temporary files
+goose_output.txt
+goose_clean.txt
+goose_prompt.txt
+context.json
+temp_*.json
+goose_assets/
+config/
+config/
+config/
