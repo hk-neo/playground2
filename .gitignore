@@ -335,3 +335,5 @@ context.json
 temp_*.json
 goose_assets/
 config/
+config/
+config/
