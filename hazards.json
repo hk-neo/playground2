@@ -1,0 +1,119 @@
+[
+  {
+    "summary": "[HAZ-001] DICOM 파일 파싱 오류로 인한 영상 데이터 손상",
+    "description": "DICOM 파일 로드 및 파싱 과정에서 파일 형식 비호환, 태그 파싱 오류, 데이터 디코딩 실패 등으로 인해 영상 데이터가 손상되거나 누락될 수 있음. 손상된 영상 데이터는 오진으로 이어질 수 있음.",
+    "harm": "손상된 영상 데이터가 표시되어 의료진이 부정확한 영상을 기반으로 진단을 수행할 위험",
+    "severity": "serious",
+    "p1": "remote",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1970"]
+  },
+  {
+    "summary": "[HAZ-002] MPR 렌더링 오류로 인한 단면 영상 왜곡",
+    "description": "CBCT 볼륨 데이터로부터 Axial, Coronal, Sagittal 단면 생성 시 렌더링 알고리즘 오류, 보간(interpolation) 계산 오류 등으로 인해 단면 영상이 왜곡되거나 픽셀 값이 부정확하게 표시될 수 있음.",
+    "harm": "왜곡된 단면 영상이 표시되어 해부학적 구조를 잘못 인식하게 되어 오진 위험",
+    "severity": "serious",
+    "p1": "remote",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1971"]
+  },
+  {
+    "summary": "[HAZ-003] 3D 볼륨 렌더링 시 전송 함수 오적용",
+    "description": "Ray Casting 알고리즘의 전송 함수(Transfer Function)가 잘못 설정되거나 기본값이 부적절하여 조직의 투명도 및 색상 매핑이 잘못 표시됨. 중요한 해부학적 구조가 가려지거나 과도하게 강조될 수 있음.",
+    "harm": "중요한 해부학적 구조가 시각적으로 누락되어 진단 누락 위험",
+    "severity": "serious",
+    "p1": "remote",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1972"]
+  },
+  {
+    "summary": "[HAZ-004] 3D 뷰 조작 시 카메라 위치 정보 오류",
+    "description": "3D 회전/확대/축소 제어 시 카메라 행렬 계산 오류, 입력 처리 지연, 좌표 변환 오류 등으로 인해 사용자가 의도한 것과 다른 방향/각도로 뷰가 표시됨. 마우스/터치 입력이 정확하게 반영되지 않을 수 있음.",
+    "harm": "사용자가 원하는 해부학적 영역을 정확히 관찰하지 못하여 진단 효율성 저하 및 오관찰 위험",
+    "severity": "minor",
+    "p1": "occasional",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1973"]
+  },
+  {
+    "summary": "[HAZ-005] Window Level/Width 조절 시 영상 대비 왜곡",
+    "description": "Window Level(WL) 및 Window Width(WW) 값 조절 시 픽셀 값 매핑 범위가 잘못 계산되거나, 한계값(clipping) 처리 오류로 인해 영상의 밝기와 대비가 의도와 다르게 표시됨. 진단에 필요한 조직 대비가 손실될 수 있음.",
+    "harm": "적절한 대비 조절이 불가하여 미세 병변을 놓치는 오진 위험",
+    "severity": "serious",
+    "p1": "remote",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1974"]
+  },
+  {
+    "summary": "[HAZ-006] 측정 도구의 거리/각도 계산 부정확",
+    "description": "거리(mm) 및 각도(도) 측정 도구에서 픽셀 간격(pixel spacing) 정보 오류, 단위 변환 오류, 보간 계산 오류 등으로 인해 측정값이 부정확하게 표시됨. DICOM 태그의 픽셀 간격 값을 잘못 읽을 수 있음.",
+    "harm": "부정확한 측정값이 수술 계획이나 치료 결정에 사용되어 환자 안전에 위험",
+    "severity": "serious",
+    "p1": "remote",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1975"]
+  },
+  {
+    "summary": "[HAZ-007] ROI 표시 영역 좌표 오류",
+    "description": "MPR 단면 영상에서 ROI(관심영역)을 표시할 때 좌표 변환 오류, 화면 해상도 매핑 오류 등으로 인해 사용자가 지정한 위치와 다른 곳에 ROI가 표시되거나 크기가 왜곡됨.",
+    "harm": "잘못된 영역이 관심영역으로 표시되어 의료진이 오인할 수 있으나, 보조 도구이므로 직접적 진단 오류 가능성은 낮음",
+    "severity": "minor",
+    "p1": "occasional",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1976"]
+  },
+  {
+    "summary": "[HAZ-008] 환자 정보 표시 오류 (정보 불일치)",
+    "description": "DICOM 파일에서 추출한 환자 정보(성명, 환자ID, 촬영일자 등)가 화면에 잘못 표시되거나, 다른 환자의 정보가 혼합되어 표시됨. DICOM 태그 파싱 오류나 캐싱 문제로 발생할 수 있음.",
+    "harm": "다른 환자의 정보가 표시되어 환자 혼동(patient misidentification) 위험",
+    "severity": "critical",
+    "p1": "remote",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1977"]
+  },
+  {
+    "summary": "[HAZ-009] MPR-3D 뷰 간 위치 동기화 불일치",
+    "description": "MPR 단면 영상과 3D 볼륨 렌더링 뷰 간의 위치/방향 동기화가 정확하지 않아, MPR에서 선택한 위치가 3D 뷰에 잘못 표시되거나 반대 방향의 동기화가 지연됨. 좌표계 변환 행렬 오류가 원인일 수 있음.",
+    "harm": "3D 뷰와 MPR 단면 간 위치 불일치로 해부학적 위치를 잘못 인식하여 오진 위험",
+    "severity": "serious",
+    "p1": "occasional",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1978"]
+  },
+  {
+    "summary": "[HAZ-010] 렌더링 성능 저하로 인한 실시간 업데이트 지연",
+    "description": "대용량 볼륨 데이터(512x512x512 이상) 처리 시 MPR 렌더링 framerate 저하(30fps 미만), 3D 렌더링 framerate 저하(15fps 미만), 초기 로딩 시간 초과(5초 초과) 등의 성능 문제. 메모리 부족, GPU 자원 경합, 최적화 부족 등이 원인.",
+    "harm": "실시간 렌더링 지연으로 사용자가 현재 상태가 아닌 과거 영상을 관찰하게 되어 조작 오류 위험. 직접적 환자 위해보다는 사용성 저하가 주된 영향",
+    "severity": "minor",
+    "p1": "occasional",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1979"]
+  },
+  {
+    "summary": "[HAZ-011] 웹 브라우저 호환성 문제로 인한 UI 오작동",
+    "description": "지원하지 않는 브라우저 버전이나 웹 표준 비호환으로 인해 UI 요소가 정상 표시되지 않거나, 도구 접근이 불가능함. WebGL 미지원 환경에서 3D 렌더링 불가. 레이아웃 깨짐으로 인해 중요 기능에 접근할 수 없음.",
+    "harm": "UI 오작동으로 필수 기능에 접근하지 못해 진단 지연 또는 불가능 상태 발생 위험",
+    "severity": "minor",
+    "p1": "occasional",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1980"]
+  },
+  {
+    "summary": "[HAZ-012] 환자 데이터 외부 유출 또는 미승인 접근",
+    "description": "환자 영상 데이터 및 개인정보가 로컬 환경을 벗어나 외부로 전송되거나, 미승인 사용자가 데이터에 접근할 수 있는 보안 취약점. 브라우저 캐시, 임시 파일, 네트워크 요청 등을 통한 데이터 노출 가능성.",
+    "harm": "환자 개인정보 및 의료 영상 데이터 유출로 개인정보보호법 위반 및 환자 프라이버시 침해",
+    "severity": "critical",
+    "p1": "remote",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1981"]
+  },
+  {
+    "summary": "[HAZ-013] 소프트웨어 변경 관리 누락으로 인한 미승인 변경 반영",
+    "description": "소프트웨어 형상 관리 및 변경 관리 절차가 준수되지 않아, 검증되지 않은 코드 변경이 프로덕션에 반영됨. V&V(검증 및 확인) 문서화 누락, 변경 이력 추적 불가, 승인되지 않은 기능 추가 등의 위험.",
+    "harm": "검증되지 않은 소프트웨어 변경이 의료기기에 반영되어 규제 위반 및 환자 안전 위협",
+    "severity": "critical",
+    "p1": "remote",
+    "p2": "remote",
+    "source_keys": ["PLAYG-1982"]
+  }
+]
