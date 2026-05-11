@@ -1,0 +1,3 @@
+[submodule "AutoDevAgent"]
+	path = AutoDevAgent
+	url = https://github.com/hk-neo/AutoDevAgent.git
