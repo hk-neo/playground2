@@ -51,9 +51,10 @@ export class TransferSyntaxResolver {
 
   /** 전송 구문 UID로 정보 조회 */
   resolve(uid: string): TransferSyntaxInfo {
-    const info = this.supportedUIDs.get(uid);
+    const cleanUID = uid.replace(/\0/g, '').trim();
+    const info = this.supportedUIDs.get(cleanUID);
     if (!info) {
-      throw new UnsupportedTransferSyntaxError(uid);
+      throw new UnsupportedTransferSyntaxError(cleanUID);
     }
     return info;
   }

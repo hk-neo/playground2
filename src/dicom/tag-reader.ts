@@ -1,6 +1,7 @@
 import type { DicomTag } from '../shared/types/dicom';
 import type { DicomTags } from '../shared/types/patient';
 import { InvalidDicomError, MissingTagError } from '../shared/errors/dicom';
+import { CharEncodingDecoder } from '../encoding/char-encoding-decoder';
 
 /** DICOM 매직 바이트 오프셋 */
 const DICM_PREFIX_OFFSET = 128;
@@ -63,6 +64,9 @@ export class DicomTagReader {
 
     // 나머지 데이터셋 파싱
     this.parseDataset(tags);
+
+    // Specific Character Set 기반 문자열 재디코딩
+    this.redecodeStrings(tags);
 
     return tags;
   }
@@ -183,6 +187,54 @@ export class DicomTagReader {
         this.byteOffset += 8 + (length === 0xFFFFFFFF ? 0 : length);
       }
     }
+  }
+
+  /** 문자열 VR 태그 값을 올바른 인코딩으로 재디코딩 */
+  private redecodeStrings(tags: DicomTags): void {
+    const charsetValue = tags.get('00080005')?.value;
+    if (!charsetValue || typeof charsetValue !== 'string') return;
+
+    const cleanCharset = charsetValue.replace(/\0/g, '').trim();
+    if (!cleanCharset || cleanCharset === 'ISO_IR 6' || cleanCharset === 'ISO 2022 IR 6') return;
+
+    const decoder = new CharEncodingDecoder();
+    decoder.setEncodingFromDicom(cleanCharset);
+
+    const stringVRs = new Set(['AE', 'AS', 'CS', 'DA', 'DS', 'DT', 'IS', 'LO', 'LT', 'PN', 'SH', 'ST', 'TM', 'UI', 'UR', 'UT', 'UN']);
+
+    for (const [key, tag] of tags) {
+      if (!stringVRs.has(tag.vr)) continue;
+      if (tag.group === 0x0002) continue; // 메타 그룹은 항상 ASCII
+      if (typeof tag.value !== 'string') continue;
+
+      // 태그의 값 영역 오프셋과 길이로 원시 바이트 재구성
+      const headerSize = this.getHeaderSize(tag);
+      const valueOffset = tag.offset + headerSize;
+      const valueLength = tag.length;
+
+      if (valueOffset < 0 || valueOffset + valueLength > this.dataView.byteLength || valueLength <= 0) continue;
+
+      const rawBytes = new Uint8Array(valueLength);
+      for (let i = 0; i < valueLength; i++) {
+        rawBytes[i] = this.dataView.getUint8(valueOffset + i);
+      }
+
+      try {
+        const decoded = decoder.decode(rawBytes.buffer as ArrayBuffer);
+        tag.value = decoded;
+      } catch {
+        // 기존 ASCII 문자열 유지
+      }
+    }
+  }
+
+  /** 태그 헤더 크기 반환 */
+  private getHeaderSize(tag: DicomTag): number {
+    // Explicit VR: group(2) + element(2) + vr(2) + length(2 or 2+reserved+4)
+    if (SHORT_VR_LENGTH_SIZE[tag.vr]) {
+      return 8; // group(2) + element(2) + vr(2) + length(2)
+    }
+    return 12; // group(2) + element(2) + vr(2) + reserved(2) + length(4)
   }
 
   /** Explicit VR 모드에서 태그 읽기 */

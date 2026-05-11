@@ -5,6 +5,7 @@ node_modules/
 dist/
 
 # AutoDevAgent
+AutoDevAgent
 .env
 goose_output.txt
 goose_clean.txt

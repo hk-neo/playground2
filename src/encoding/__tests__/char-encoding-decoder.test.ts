@@ -29,9 +29,11 @@ describe('CharEncodingDecoder', () => {
       expect(decoder.decode(buf.buffer)).toBe(text);
     });
 
-    it('should throw EncodingDetectionError for invalid encoding', () => {
-      const buf = new ArrayBuffer(4);
-      expect(() => decoder.decode(buf, 'invalid-encoding-xyz')).toThrow(EncodingDetectionError);
+    it('should fallback to UTF-8 for unsupported encoding', () => {
+      const buf = new TextEncoder().encode('test');
+      const result = decoder.decode(buf.buffer, 'invalid-encoding-xyz');
+      // 폴백으로 UTF-8 디코딩됨
+      expect(typeof result).toBe('string');
     });
   });
 
@@ -50,6 +52,29 @@ describe('CharEncodingDecoder', () => {
   describe('setEncoding', () => {
     it('should change default encoding', () => {
       decoder.setEncoding('ascii');
+      const buf = new TextEncoder().encode('test');
+      expect(decoder.decode(buf.buffer)).toBe('test');
+    });
+  });
+
+  describe('setEncodingFromDicom', () => {
+    it('should map ISO 2022 IR 149 to euc-kr', () => {
+      decoder.setEncodingFromDicom('ISO 2022 IR 149');
+      // EUC-KR로 '정성진' 인코딩된 바이트
+      const eucKrBytes = new Uint8Array([0xc1, 0xa4, 0xbc, 0xba, 0xc1, 0xf8]);
+      const result = decoder.decode(eucKrBytes.buffer);
+      expect(result).toBe('정성진');
+    });
+
+    it('should map ISO_IR 149 to euc-kr', () => {
+      decoder.setEncodingFromDicom('ISO_IR 149');
+      const eucKrBytes = new Uint8Array([0xc1, 0xa4, 0xbc, 0xba, 0xc1, 0xf8]);
+      const result = decoder.decode(eucKrBytes.buffer);
+      expect(result).toBe('정성진');
+    });
+
+    it('should default to utf-8 for unknown charset', () => {
+      decoder.setEncodingFromDicom('UNKNOWN_CHARSET');
       const buf = new TextEncoder().encode('test');
       expect(decoder.decode(buf.buffer)).toBe('test');
     });

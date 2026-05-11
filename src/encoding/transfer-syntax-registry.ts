@@ -69,9 +69,10 @@ export class TransferSyntaxRegistry implements ITransferSyntaxProvider {
 
   /** 전송 구문 정의 조회 */
   lookup(uid: string): TransferSyntaxDef {
-    const def = this.registry.get(uid);
+    const cleanUID = uid.replace(/\0/g, '').trim();
+    const def = this.registry.get(cleanUID);
     if (!def) {
-      throw new UnsupportedTransferSyntaxError(uid);
+      throw new UnsupportedTransferSyntaxError(cleanUID);
     }
     return def;
   }
