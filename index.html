@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CBCT MPR Viewer - Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 20px; }
+    h1 { font-size: 20px; margin-bottom: 16px; color: #4fc3f7; }
+    #controls { margin-bottom: 16px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    #controls label { font-size: 13px; }
+    #controls input[type=range] { width: 200px; }
+    #file-input { display: none; }
+    .btn {
+      padding: 8px 20px; border: 1px solid #4fc3f7; background: transparent;
+      color: #4fc3f7; border-radius: 4px; cursor: pointer; font-size: 14px;
+    }
+    .btn:hover { background: #4fc3f7; color: #1a1a2e; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #status { font-size: 13px; color: #aaa; }
+    #viewport-container {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+    }
+    .viewport {
+      background: #000; border: 1px solid #333; border-radius: 4px;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .viewport canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; }
+    .viewport-label {
+      font-size: 12px; padding: 4px 8px; color: #888; text-align: center; width: 100%;
+      border-top: 1px solid #333;
+    }
+    .slider-row { display: flex; gap: 8px; align-items: center; }
+    .slider-row span { font-size: 12px; min-width: 60px; }
+    #loading {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7); display: none; justify-content: center;
+      align-items: center; font-size: 18px; z-index: 100;
+    }
+    #loading.active { display: flex; }
+  </style>
+</head>
+<body>
+  <h1>CBCT MPR Viewer</h1>
+
+  <div id="controls">
+    <button class="btn" id="load-btn">DICOM 파일 로드</button>
+    <input type="file" id="file-input" multiple webkitdirectory>
+    <span id="status">DICOM 폴더를 선택하세요</span>
+  </div>
+
+  <div id="controls-mpm" style="display:none; margin-bottom: 12px;">
+    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+      <div class="slider-row">
+        <label>Axial (Z):</label>
+        <input type="range" id="axial-slider" min="0" max="1" value="0">
+        <span id="axial-val">0</span>
+      </div>
+      <div class="slider-row">
+        <label>Coronal (Y):</label>
+        <input type="range" id="coronal-slider" min="0" max="1" value="0">
+        <span id="coronal-val">0</span>
+      </div>
+      <div class="slider-row">
+        <label>Sagittal (X):</label>
+        <input type="range" id="sagittal-slider" min="0" max="1" value="0">
+        <span id="sagittal-val">0</span>
+      </div>
+      <div class="slider-row">
+        <label>WL:</label>
+        <input type="range" id="wl-slider" min="-2000" max="4000" value="500">
+        <span id="wl-val">500</span>
+      </div>
+      <div class="slider-row">
+        <label>WW:</label>
+        <input type="range" id="ww-slider" min="1" max="8000" value="2500">
+        <span id="ww-val">2500</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewport-container">
+    <div class="viewport">
+      <canvas id="axial-canvas" width="512" height="512"></canvas>
+      <div class="viewport-label">Axial</div>
+    </div>
+    <div class="viewport">
+      <canvas id="coronal-canvas" width="512" height="512"></canvas>
+      <div class="viewport-label">Coronal</div>
+    </div>
+    <div class="viewport">
+      <canvas id="sagittal-canvas" width="512" height="512"></canvas>
+      <div class="viewport-label">Sagittal</div>
+    </div>
+  </div>
+
+  <div id="loading">볼륨 구축 중...</div>
+
+  <script type="module" src="/src/visualize/main.ts"></script>
+</body>
+</html>

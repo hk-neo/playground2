@@ -102,8 +102,10 @@ export class DicomTagReader {
       const group = this.dataView.getUint16(this.byteOffset, this.littleEndian);
       const element = this.dataView.getUint16(this.byteOffset + 2, this.littleEndian);
 
-      // Pixel Data (7FE0,0010) 이후는 파싱 중단
+      // Pixel Data (7FE0,0010): offset/length만 저장하고 파싱 중단
       if (group === 0x7FE0 && element === 0x0010) {
+        const tag = this.isExplicitVR ? this.readTagExplicit() : this.readTagImplicit();
+        if (tag) tags.set(this.tagKey(tag.group, tag.element), tag);
         break;
       }
 
@@ -287,6 +289,12 @@ export class DicomTagReader {
   private readValue(vr: string, length: number): unknown {
     if (length <= 0 || this.byteOffset + length > this.dataView.byteLength) {
       this.byteOffset += Math.max(length, 0);
+      return undefined;
+    }
+
+    // 대용량 바이너리 (픽셀 데이터 등)는 값 읽지 않고 offset만 유지
+    if ((vr === 'OW' || vr === 'OB' || vr === 'OD' || vr === 'OF') && length > 1024) {
+      this.byteOffset += length;
       return undefined;
     }
 
