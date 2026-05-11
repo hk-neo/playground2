@@ -5,9 +5,13 @@
   "description": "Local CBCT Web Viewer - 의료 영상 뷰어",
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "jsdom": "^29.1.1",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.5"
   }
 }
