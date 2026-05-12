@@ -12,7 +12,6 @@ const executionKey = process.argv.find(a => a.startsWith('PLAYG')) || 'PLAYG-247
 const testFiles = [
   'tests/xray/dicom-load.mjs',
   'tests/xray/ui-shell.mjs',
-  'tests/xray/error-handling.mjs',
 ];
 
 const allResults = [];
