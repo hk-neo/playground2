@@ -24,7 +24,7 @@ export async function loadDICOM(page, fileCount = 200) {
   // public/dicom-test/의 파일을 HTTP fetch로 로드
   const files = [];
   for (let i = 1; i <= fileCount; i++) {
-    files.push(`/dicom-test/IM_${String(i).padStart(4, '0')}.dcm`);
+    files.push(`/dicom-test/${String(10000 + i).padStart(5, '0')}.dcm`);
   }
 
   await page.evaluate(async (fileList) => {

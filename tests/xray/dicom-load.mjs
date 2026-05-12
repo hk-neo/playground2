@@ -394,12 +394,12 @@ const tests = {
   // ---------------------------------------------------------------------------
   'PLAYG-2436': async (page) => {
     // Create corrupted binary data mixed with valid files
-    const result = await page.evaluate(async () => {
+    const corruptResult = await page.evaluate(async () => {
       // Fetch a few valid DICOM files
       const validFiles = [];
       for (let i = 1; i <= 5; i++) {
         try {
-          const resp = await fetch(`/dicom-test/IM_${String(i).padStart(4, '0')}.dcm`);
+          const resp = await fetch(`/dicom-test/${String(10000 + i)}.dcm`);
           if (!resp.ok) continue;
           const blob = await resp.blob();
           validFiles.push(new File([blob], `IM_${String(i).padStart(4, '0')}.dcm`, { type: 'application/dicom' }));
@@ -436,7 +436,7 @@ const tests = {
     if (!stable) throw new Error('System crashed loading corrupted files');
 
     await takeScreenshot(page, 'PLAYG-2436-corrupted-folder');
-    return result('PLAYG-2436', 'PASSED', `손상 파일 폴더 로드 안정: valid=${result.validCount}, corrupted=${result.corruptedCount}`);
+    return result('PLAYG-2436', 'PASSED', `손상 파일 폴더 로드 안정: valid=${corruptResult.validCount}, corrupted=${corruptResult.corruptedCount}`);
   },
 
   // ---------------------------------------------------------------------------
