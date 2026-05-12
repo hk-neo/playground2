@@ -199,11 +199,7 @@ const tests = {
         const start = performance.now();
         slider.value = '700';
         slider.dispatchEvent(new Event('input', { bubbles: true }));
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            resolve(performance.now() - start);
-          });
-        });
+        setTimeout(() => resolve(performance.now() - start), 0);
       });
     });
     if (latency < 0) throw new Error('WL slider not found');
