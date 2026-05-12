@@ -30,18 +30,14 @@ export class OrbitalCamera implements ICamera {
   rotate(deltaTheta: number, deltaPhi: number): void {
     if (Math.abs(deltaTheta) < 1e-10 && Math.abs(deltaPhi) < 1e-10) return;
 
-    const yawQuat = new QuaternionOps().fromAxisAngle(
-      { x: 0, y: 1, z: 0 }, deltaTheta,
-    );
-    const pitchQuat = new QuaternionOps().fromAxisAngle(
-      { x: 1, y: 0, z: 0 }, deltaPhi,
-    );
+    // Screen-space trackball: rotate around camera's local axes
+    const right = this.quaternion.rotateVector({ x: 1, y: 0, z: 0 });
+    const up = this.quaternion.rotateVector({ x: 0, y: 1, z: 0 });
 
-    // Yaw in world space (pre-multiply), pitch in local space (post-multiply)
-    this.quaternion = yawQuat
-      .multiply(this.quaternion)
-      .multiply(pitchQuat)
-      .normalize();
+    const pitchQ = new QuaternionOps().fromAxisAngle(right, deltaPhi);
+    const yawQ = new QuaternionOps().fromAxisAngle(up, deltaTheta);
+
+    this.quaternion = yawQ.multiply(pitchQ).multiply(this.quaternion).normalize();
   }
 
   zoom(delta: number): void {
