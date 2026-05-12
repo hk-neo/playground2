@@ -12,7 +12,7 @@ Task 티켓을 읽고 코드를 구현합니다.
 1. **티켓 정보 조회**
 ```bash
 source .env 2>/dev/null; export $(grep -v '^#' .env | xargs) 2>/dev/null
-python3 AutoDevAgent/goose_assets/runner/jira_toolkit.py fetch_linked {"ticket_key"}
+python3 AutoDevAgent/goose_assets/runner/jira_toolkit.py fetch_linked $ARGUMENTS
 ```
 
 2. **티켓 내용 분석**
@@ -32,11 +32,11 @@ python3 AutoDevAgent/goose_assets/runner/jira_toolkit.py fetch_linked {"ticket_k
 5. **커밋**
 ```bash
 git add -A
-git commit -m "[{ticket_key}] Implement: {요약}"
+git commit -m "[$ARGUMENTS] Implement: {요약}"
 ```
 
 6. **Jira 업데이트**
 ```bash
 source .env 2>/dev/null; export $(grep -v '^#' .env | xargs) 2>/dev/null
-python3 AutoDevAgent/goose_assets/runner/jira_toolkit.py comment {"ticket_key"} "구현 완료: {요약}"
+python3 AutoDevAgent/goose_assets/runner/jira_toolkit.py comment $ARGUMENTS "구현 완료: {요약}"
 ```
