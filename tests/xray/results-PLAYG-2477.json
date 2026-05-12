@@ -1,0 +1,460 @@
+{
+  "testExecutionKey": "PLAYG-2477",
+  "tests": [
+    {
+      "status": "FAILED",
+      "comment": "Volume not rendered for varying slice thickness test",
+      "testKey": "PLAYG-2423"
+    },
+    {
+      "status": "PASSED",
+      "comment": "빈 폴더 로드 시 시스템 안정성 유지 확인",
+      "testKey": "PLAYG-2424"
+    },
+    {
+      "status": "FAILED",
+      "comment": "Pixel decoding check failed: no non-zero pixels",
+      "testKey": "PLAYG-2425"
+    },
+    {
+      "status": "FAILED",
+      "comment": "볼륨 로드 실패: 에러: No valid DICOM slices found",
+      "testKey": "PLAYG-2426"
+    },
+    {
+      "status": "FAILED",
+      "comment": "메타데이터 로드 에러 상태",
+      "testKey": "PLAYG-2427"
+    },
+    {
+      "status": "FAILED",
+      "comment": "해상도 렌더링 실패: axial-canvas, coronal-canvas, sagittal-canvas",
+      "testKey": "PLAYG-2428"
+    },
+    {
+      "status": "PASSED",
+      "comment": "손상된 파일 포함 시 복구 처리 정상",
+      "testKey": "PLAYG-2429"
+    },
+    {
+      "status": "PASSED",
+      "comment": "필수 메타데이터 누락 파일 처리 안정성 확인",
+      "testKey": "PLAYG-2430"
+    },
+    {
+      "status": "PASSED",
+      "comment": "이종 데이터 처리 확인: status=에러: No valid DICOM slices found",
+      "testKey": "PLAYG-2431"
+    },
+    {
+      "status": "FAILED",
+      "comment": "Volume reconstruction order check failed - views not rendered",
+      "testKey": "PLAYG-2432"
+    },
+    {
+      "status": "PASSED",
+      "comment": "다국어 인코딩 파싱 확인: garbled=false",
+      "testKey": "PLAYG-2433"
+    },
+    {
+      "status": "PASSED",
+      "comment": "대용량 로드 후 시스템 안정: layout=0.01ms",
+      "testKey": "PLAYG-2434"
+    },
+    {
+      "status": "FAILED",
+      "comment": "Volume not loaded - loading performance test failed",
+      "testKey": "PLAYG-2435"
+    },
+    {
+      "status": "FAILED",
+      "comment": "result is not a function",
+      "testKey": "PLAYG-2436"
+    },
+    {
+      "status": "PASSED",
+      "comment": "DICOM 헤더 누락 파일 처리 안정성 확인",
+      "testKey": "PLAYG-2437"
+    },
+    {
+      "status": "PASSED",
+      "comment": "0바이트 파일 처리 안정성 확인",
+      "testKey": "PLAYG-2438"
+    },
+    {
+      "status": "PASSED",
+      "comment": "비 DICOM 파일 혼재 시 필터링 처리 정상",
+      "testKey": "PLAYG-2439"
+    },
+    {
+      "status": "PASSED",
+      "comment": "잘못된 형식 .dcm 파일 처리 안정성 확인",
+      "testKey": "PLAYG-2440"
+    },
+    {
+      "status": "PASSED",
+      "comment": "경로 접근 불가 에러 처리 UI 확인 (네트워크 단절 시뮬레이션 제한)",
+      "testKey": "PLAYG-2441"
+    },
+    {
+      "status": "PASSED",
+      "comment": "빈 폴더 로드 시 안정성 확인: 0 files, page stable",
+      "testKey": "PLAYG-2442"
+    },
+    {
+      "status": "PASSED",
+      "comment": "필수 DICOM 태그 누락 파일 처리 확인",
+      "testKey": "PLAYG-2443"
+    },
+    {
+      "status": "PASSED",
+      "comment": "접근 권한 없음 시뮬레이션: 에러 처리 UI 안정 (OS 권한 제한 직접 시뮬레이션 불가)",
+      "testKey": "PLAYG-2444"
+    },
+    {
+      "status": "FAILED",
+      "comment": "Rendering lost after large data test",
+      "testKey": "PLAYG-2445"
+    },
+    {
+      "status": "PASSED",
+      "comment": "로드 중단 및 복구 시뮬레이션 확인 (취소 버튼 직접 테스트 제한)",
+      "testKey": "PLAYG-2446"
+    },
+    {
+      "status": "PASSED",
+      "comment": "비표준 확장자 파일 인식 처리 확인",
+      "testKey": "PLAYG-2447"
+    },
+    {
+      "status": "FAILED",
+      "comment": "MPR 렌더링 데이터 없음",
+      "testKey": "PLAYG-2448"
+    },
+    {
+      "status": "PASSED",
+      "comment": "최소 데이터 미달 시 처리 확인 (1개 파일)",
+      "testKey": "PLAYG-2449"
+    },
+    {
+      "status": "PASSED",
+      "comment": "메타데이터 태그 추출 확인: 1개 요소 발견",
+      "testKey": "PLAYG-2450"
+    },
+    {
+      "status": "FAILED",
+      "comment": "압축 해제 디코딩 실패: axial-canvas, coronal-canvas, sagittal-canvas",
+      "testKey": "PLAYG-2451"
+    },
+    {
+      "status": "FAILED",
+      "comment": "해상도 지원 실패: [{\"id\":\"axial-canvas\",\"ok\":false,\"w\":512,\"h\":512},{\"id\":\"coronal-canvas\",\"ok\":false,\"w\":512,\"h\":512},{\"id\":\"sagittal-canvas\",\"ok\":false,\"w\":512,\"h\":512}]",
+      "testKey": "PLAYG-2452"
+    },
+    {
+      "status": "FAILED",
+      "comment": "슬라이스 두께 처리 기하학적 검증 실패",
+      "testKey": "PLAYG-2453"
+    },
+    {
+      "status": "PASSED",
+      "comment": "빈 폴더 예외 처리: 시스템 안정성 유지",
+      "testKey": "PLAYG-2454"
+    },
+    {
+      "status": "PASSED",
+      "comment": "필수 메타데이터 누락 파일 예외 처리 확인",
+      "testKey": "PLAYG-2455"
+    },
+    {
+      "status": "PASSED",
+      "comment": "손상 파일 복구: valid=10, total=12",
+      "testKey": "PLAYG-2456"
+    },
+    {
+      "status": "PASSED",
+      "comment": "이종 데이터 처리 확인: 에러: No valid DICOM slices found",
+      "testKey": "PLAYG-2457"
+    },
+    {
+      "status": "PASSED",
+      "comment": "다국어 인코딩 확인: garbled=false",
+      "testKey": "PLAYG-2458"
+    },
+    {
+      "status": "FAILED",
+      "comment": "Rendering degraded after resource stability test",
+      "testKey": "PLAYG-2459"
+    },
+    {
+      "status": "FAILED",
+      "comment": "Volume reconstruction failed with reverse-ordered files",
+      "testKey": "PLAYG-2460"
+    },
+    {
+      "status": "PASSED",
+      "comment": "손상 파일 처리: valid=3, corrupt=2",
+      "testKey": "PLAYG-2461"
+    },
+    {
+      "status": "FAILED",
+      "comment": "Volume not loaded for slow storage test",
+      "testKey": "PLAYG-2462"
+    },
+    {
+      "status": "PASSED",
+      "comment": "DICOM 헤더 누락 파일 처리 안정성 확인",
+      "testKey": "PLAYG-2463"
+    },
+    {
+      "status": "PASSED",
+      "comment": "0바이트 파일 혼재 처리 안정성 확인",
+      "testKey": "PLAYG-2464"
+    },
+    {
+      "status": "PASSED",
+      "comment": "잘못된 형식 .dcm 파일 처리 확인 (text/jpeg/zip 내용)",
+      "testKey": "PLAYG-2465"
+    },
+    {
+      "status": "PASSED",
+      "comment": "필터링 테스트: DICOM=5, non-DICOM=5",
+      "testKey": "PLAYG-2466"
+    },
+    {
+      "status": "PASSED",
+      "comment": "필수 DICOM 태그 누락 (SOP UID/Patient ID) 처리 확인",
+      "testKey": "PLAYG-2467"
+    },
+    {
+      "status": "PASSED",
+      "comment": "빈 폴더 로드 안정성: 모든 UI 요소 유지",
+      "testKey": "PLAYG-2468"
+    },
+    {
+      "status": "PASSED",
+      "comment": "접근 권한 에러 처리 UI 확인 (OS 권한 시뮬레이션 불가)",
+      "testKey": "PLAYG-2469"
+    },
+    {
+      "status": "PASSED",
+      "comment": "경로 접근 불가 타임아웃 처리 확인 (네트워크 단절 시뮬레이션 제한, DOM response: 0.1ms)",
+      "testKey": "PLAYG-2470"
+    },
+    {
+      "status": "PASSED",
+      "comment": "대용량 리소스 관리 확인: heap limit=4192MB",
+      "testKey": "PLAYG-2471"
+    },
+    {
+      "status": "PASSED",
+      "comment": "로드 중단/복구 시뮬레이션: 10개 파일 로드 후 취소",
+      "testKey": "PLAYG-2472"
+    },
+    {
+      "status": "PASSED",
+      "comment": "비표준 확장자 인식: 4개 파일 (no-ext, .DCM, .dcminfo, .ima)",
+      "testKey": "PLAYG-2473"
+    },
+    {
+      "status": "PASSED",
+      "comment": "최소 데이터 미달 처리: status=에러: No valid DICOM slices found",
+      "testKey": "PLAYG-2474"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Browser identified as modern with WebGL2: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/5",
+      "testKey": "PLAYG-2384"
+    },
+    {
+      "status": "PASSED",
+      "comment": "header, controls-panel, vp-grid, status-bar all present",
+      "testKey": "PLAYG-2385"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Supported browser: no UnsupportedBrowserError triggered",
+      "testKey": "PLAYG-2386"
+    },
+    {
+      "status": "PASSED",
+      "comment": "4 viewport elements present, shell unmount structure verified",
+      "testKey": "PLAYG-2387"
+    },
+    {
+      "status": "PASSED",
+      "comment": "WebGL2=true, app rendered correctly",
+      "testKey": "PLAYG-2388"
+    },
+    {
+      "status": "PASSED",
+      "comment": "All 4 canvases initialized with dimensions",
+      "testKey": "PLAYG-2389"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Initial loading completed in 767ms (threshold: 5000ms)",
+      "testKey": "PLAYG-2390"
+    },
+    {
+      "status": "PASSED",
+      "comment": "State sync: 11.10ms (threshold: 16ms)",
+      "testKey": "PLAYG-2391"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Memory stable across 20 mount/unmount cycles (delta: 0.01MB)",
+      "testKey": "PLAYG-2392"
+    },
+    {
+      "status": "PASSED",
+      "comment": "App functional with error/loading handling mechanisms in place",
+      "testKey": "PLAYG-2393"
+    },
+    {
+      "status": "PASSED",
+      "comment": "DOM stable after 5 rapid remount cycles",
+      "testKey": "PLAYG-2394"
+    },
+    {
+      "status": "PASSED",
+      "comment": "State change: WL=800, WW=3000",
+      "testKey": "PLAYG-2395"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Subscriber (WL display) received state change notification",
+      "testKey": "PLAYG-2396"
+    },
+    {
+      "status": "PASSED",
+      "comment": "All slider states reset to initial defaults",
+      "testKey": "PLAYG-2397"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Controls panel subscribe/unsubscribe (open/close) works correctly",
+      "testKey": "PLAYG-2398"
+    },
+    {
+      "status": "PASSED",
+      "comment": "50 rapid state updates completed without infinite loop, final WL=990",
+      "testKey": "PLAYG-2399"
+    },
+    {
+      "status": "PASSED",
+      "comment": "App remained stable after extreme state value",
+      "testKey": "PLAYG-2400"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Concurrent updates resolved consistently: WL=519, WW=2690",
+      "testKey": "PLAYG-2401"
+    },
+    {
+      "status": "PASSED",
+      "comment": "App handled invalid state value gracefully",
+      "testKey": "PLAYG-2402"
+    },
+    {
+      "status": "PASSED",
+      "comment": "500 rapid state updates completed in 1.90ms, app stable",
+      "testKey": "PLAYG-2403"
+    },
+    {
+      "status": "PASSED",
+      "comment": "All 4 viewport canvas components registered in DOM",
+      "testKey": "PLAYG-2404"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Registry queryable: 4 children in vp-grid",
+      "testKey": "PLAYG-2405"
+    },
+    {
+      "status": "PASSED",
+      "comment": "No duplicate component IDs: 4 unique canvases",
+      "testKey": "PLAYG-2406"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Query for non-existent component returned null, app stable",
+      "testKey": "PLAYG-2407"
+    },
+    {
+      "status": "PASSED",
+      "comment": "All canvas components batch initialized successfully",
+      "testKey": "PLAYG-2408"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Component dispose/reinit cycle works correctly",
+      "testKey": "PLAYG-2409"
+    },
+    {
+      "status": "PASSED",
+      "comment": "App stable after 10 rapid lifecycle calls",
+      "testKey": "PLAYG-2410"
+    },
+    {
+      "status": "PASSED",
+      "comment": "All 4 canvas components present, init errors isolated",
+      "testKey": "PLAYG-2411"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Mixed types: 3 MPR + 3D canvas + header + controls + status",
+      "testKey": "PLAYG-2412"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Components initialized in correct dependency order",
+      "testKey": "PLAYG-2413"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Resize reflow times: 2, 17, 16ms",
+      "testKey": "PLAYG-2414"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Layout stable at all breakpoints: mobile, tablet, desktop",
+      "testKey": "PLAYG-2415"
+    },
+    {
+      "status": "PASSED",
+      "comment": "MPR canvases present and sized at current breakpoint",
+      "testKey": "PLAYG-2416"
+    },
+    {
+      "status": "PASSED",
+      "comment": "3D viewport: 720x411, visible",
+      "testKey": "PLAYG-2417"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Header, controls, status bar panels correctly placed",
+      "testKey": "PLAYG-2418"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Layout recovered from 200x200 to 1440x900 with all viewports intact",
+      "testKey": "PLAYG-2419"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Overflow handled at 320x240 (body overflow: hidden)",
+      "testKey": "PLAYG-2420"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Layout stable after 6 rapid resizes (4 viewports)",
+      "testKey": "PLAYG-2421"
+    },
+    {
+      "status": "PASSED",
+      "comment": "Layout maintained at 800x600: 4 viewports",
+      "testKey": "PLAYG-2422"
+    }
+  ]
+}

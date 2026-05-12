@@ -76,8 +76,8 @@ export async function takeScreenshot(page, name) {
   return filePath;
 }
 
-export function result(key, status, comment = '') {
-  return { key, status, comment };
+export function result(testKey, status, comment = '') {
+  return { testKey, status, comment };
 }
 
 export async function safeTest(key, name, testFn) {
