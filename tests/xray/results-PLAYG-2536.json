@@ -1,5 +1,5 @@
 {
-  "testExecutionKey": "PLAYG-2530",
+  "testExecutionKey": "PLAYG-2536",
   "tests": [
     {
       "testKey": "PLAYG-2423",
@@ -254,12 +254,12 @@
     {
       "testKey": "PLAYG-2390",
       "status": "PASSED",
-      "comment": "Initial loading completed in 310ms (threshold: 5000ms)"
+      "comment": "Initial loading completed in 927ms (threshold: 5000ms)"
     },
     {
       "testKey": "PLAYG-2391",
       "status": "PASSED",
-      "comment": "State sync: 5.70ms (threshold: 16ms)"
+      "comment": "State sync: 10.80ms (threshold: 16ms)"
     },
     {
       "testKey": "PLAYG-2392",
@@ -319,7 +319,7 @@
     {
       "testKey": "PLAYG-2403",
       "status": "PASSED",
-      "comment": "500 rapid state updates completed in 2427.70ms, app stable"
+      "comment": "500 rapid state updates completed in 2695.70ms, app stable"
     },
     {
       "testKey": "PLAYG-2404",
@@ -374,7 +374,7 @@
     {
       "testKey": "PLAYG-2414",
       "status": "PASSED",
-      "comment": "Resize reflow times: 2, 17, 17ms"
+      "comment": "Resize reflow times: 16, 17, 16ms"
     },
     {
       "testKey": "PLAYG-2415",
@@ -484,7 +484,7 @@
     {
       "testKey": "PLAYG-2527",
       "status": "PASSED",
-      "comment": "상태 통지 지연: 6.60ms (threshold: 16ms)"
+      "comment": "상태 통지 지연: 6.50ms (threshold: 16ms)"
     },
     {
       "testKey": "PLAYG-2528",
@@ -495,6 +495,11 @@
       "testKey": "PLAYG-2529",
       "status": "PASSED",
       "comment": "대용량 로드 안정성: heap=751MB / 4192MB"
+    },
+    {
+      "testKey": "PLAYG-2534",
+      "status": "PASSED",
+      "comment": "카메라 내부 진입 수정 검증: uniform=true, cullFace=true"
     },
     {
       "testKey": "PLAYG-2481",
@@ -554,7 +559,7 @@
     {
       "testKey": "PLAYG-2492",
       "status": "PASSED",
-      "comment": "레이아웃 재배치: 0.80ms (threshold: 100ms)"
+      "comment": "레이아웃 재배치: 0.70ms (threshold: 100ms)"
     },
     {
       "testKey": "PLAYG-2493",
@@ -649,7 +654,7 @@
     {
       "testKey": "PLAYG-2511",
       "status": "PASSED",
-      "comment": "대규모 구독자 통지: 15.80ms"
+      "comment": "대규모 구독자 통지: 15.90ms"
     },
     {
       "testKey": "PLAYG-2512",
@@ -659,7 +664,12 @@
     {
       "testKey": "PLAYG-2513",
       "status": "PASSED",
-      "comment": "메모리 해제: heap=297MB / 4192MB"
+      "comment": "메모리 해제: heap=276MB / 4192MB"
+    },
+    {
+      "testKey": "PLAYG-2474",
+      "status": "PASSED",
+      "comment": "최소 데이터 미달 처리: status=에러: No valid DICOM slices found"
     }
   ]
 }

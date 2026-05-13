@@ -13,6 +13,7 @@ const testFiles = [
   'tests/xray/dicom-load.mjs',
   'tests/xray/ui-shell.mjs',
   'tests/xray/new-tests.mjs',
+  'tests/xray/extra-tests.mjs',
 ];
 
 const allResults = [];

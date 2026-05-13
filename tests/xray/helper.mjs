@@ -87,6 +87,6 @@ export async function safeTest(key, name, testFn) {
     return res;
   } catch (e) {
     console.log(`FAIL: ${key} - ${name} | ${e.message}`);
-    return { key, status: 'FAILED', comment: e.message.slice(0, 200) };
+    return { testKey: key, status: 'FAILED', comment: e.message.slice(0, 200) };
   }
 }

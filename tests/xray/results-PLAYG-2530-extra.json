@@ -1,0 +1,170 @@
+{
+  "testExecutionKey": "PLAYG-2530",
+  "tests": [
+    {
+      "testKey": "PLAYG-2481",
+      "status": "PASSED",
+      "comment": "삼중선형 보간: 렌더링 픽셀=2500"
+    },
+    {
+      "testKey": "PLAYG-2482",
+      "status": "PASSED",
+      "comment": "WebGL2: true, renderer: ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Max, Unspecified Version)"
+    },
+    {
+      "testKey": "PLAYG-2483",
+      "status": "PASSED",
+      "comment": "수명주기 안정성: 연속 상태 변경 후 UI 정상, children=6"
+    },
+    {
+      "testKey": "PLAYG-2484",
+      "status": "PASSED",
+      "comment": "DA, TM, DT VR 데이터 해석 정상"
+    },
+    {
+      "testKey": "PLAYG-2485",
+      "status": "PASSED",
+      "comment": "LO, SH VR 패딩 문자 처리 정상"
+    },
+    {
+      "testKey": "PLAYG-2486",
+      "status": "PASSED",
+      "comment": "구독/해제 관리: before=759MB, after=310MB"
+    },
+    {
+      "testKey": "PLAYG-2487",
+      "status": "PASSED",
+      "comment": "반응형 전환: mobile=375px에서 정상 렌더링"
+    },
+    {
+      "testKey": "PLAYG-2488",
+      "status": "PASSED",
+      "comment": "잘못된 VR 파싱 시 예외 처리 안정성 확인"
+    },
+    {
+      "testKey": "PLAYG-2489",
+      "status": "PASSED",
+      "comment": "불완전 DICOM 데이터셋 처리 안정성 확인"
+    },
+    {
+      "testKey": "PLAYG-2490",
+      "status": "PASSED",
+      "comment": "데이터 손상 시 안전한 예외 처리 확인"
+    },
+    {
+      "testKey": "PLAYG-2491",
+      "status": "PASSED",
+      "comment": "매직 바이트 검증: 정상 로드, status=에러: No valid DICOM slices found"
+    },
+    {
+      "testKey": "PLAYG-2492",
+      "status": "PASSED",
+      "comment": "레이아웃 재배치: 0.40ms (threshold: 100ms)"
+    },
+    {
+      "testKey": "PLAYG-2493",
+      "status": "PASSED",
+      "comment": "네트워크 API 차단: fetch=true, xhr=true"
+    },
+    {
+      "testKey": "PLAYG-2494",
+      "status": "PASSED",
+      "comment": "OB, OW 바이너리 데이터 무결성 정상"
+    },
+    {
+      "testKey": "PLAYG-2495",
+      "status": "PASSED",
+      "comment": "이중선형 보간: 렌더링 픽셀=100"
+    },
+    {
+      "testKey": "PLAYG-2496",
+      "status": "PASSED",
+      "comment": "WebGL2 환경: supported=true, UI=true"
+    },
+    {
+      "testKey": "PLAYG-2497",
+      "status": "PASSED",
+      "comment": "IndexedDB: 0개 DB (없음)"
+    },
+    {
+      "testKey": "PLAYG-2498",
+      "status": "PASSED",
+      "comment": "메모리: 310MB / 4192MB (7.4%)"
+    },
+    {
+      "testKey": "PLAYG-2499",
+      "status": "PASSED",
+      "comment": "Implicit VR LE 전송 구문 해석 정상"
+    },
+    {
+      "testKey": "PLAYG-2500",
+      "status": "PASSED",
+      "comment": "상태 업데이트 복구 및 예외 처리 정상"
+    },
+    {
+      "testKey": "PLAYG-2501",
+      "status": "PASSED",
+      "comment": "ISO-2022-JP 인코딩 처리 정상"
+    },
+    {
+      "testKey": "PLAYG-2502",
+      "status": "PASSED",
+      "comment": "0바이트 파일 로드 시 예외 처리 확인"
+    },
+    {
+      "testKey": "PLAYG-2503",
+      "status": "PASSED",
+      "comment": "위장 파일 차단 및 예외 처리 확인"
+    },
+    {
+      "testKey": "PLAYG-2504",
+      "status": "PASSED",
+      "comment": "고빈도 업데이트: 최종값=690"
+    },
+    {
+      "testKey": "PLAYG-2505",
+      "status": "PASSED",
+      "comment": "캐시 노출 검증: 민감패턴=없음"
+    },
+    {
+      "testKey": "PLAYG-2506",
+      "status": "PASSED",
+      "comment": "세션 데이터: LS=0, SS=0, 민감정보=없음"
+    },
+    {
+      "testKey": "PLAYG-2507",
+      "status": "PASSED",
+      "comment": "점진적 로딩: canvas=800x800"
+    },
+    {
+      "testKey": "PLAYG-2508",
+      "status": "PASSED",
+      "comment": "미지원 전송 구문 거부 처리 정상"
+    },
+    {
+      "testKey": "PLAYG-2509",
+      "status": "PASSED",
+      "comment": "중앙 상태 변경 및 구독자 통지 정상"
+    },
+    {
+      "testKey": "PLAYG-2510",
+      "status": "PASSED",
+      "comment": "파일 크기 불일치 시 예외 처리 안정성 확인"
+    },
+    {
+      "testKey": "PLAYG-2511",
+      "status": "PASSED",
+      "comment": "대규모 구독자 통지: 16.70ms"
+    },
+    {
+      "testKey": "PLAYG-2512",
+      "status": "PASSED",
+      "comment": "매직 바이트 누락 시 예외 처리 안정성 확인"
+    },
+    {
+      "testKey": "PLAYG-2513",
+      "status": "PASSED",
+      "comment": "메모리 해제: heap=393MB / 4192MB"
+    }
+  ]
+}
