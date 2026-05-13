@@ -408,6 +408,7 @@ out vec4 fragColor;
 void main() {
   vec2 uv = gl_FragCoord.xy / uScreen;
   vec3 back = texture(uBackFace, uv).rgb;
+  if (back == vec3(0.0)) { fragColor = vec4(0.0); return; }
   vec3 front;
   if (gl_FrontFacing) {
     front = vPos;
@@ -543,13 +544,27 @@ function render3D() {
 
   const mvp = computeMVP();
 
-  // Pass 1: back faces
+  // Camera inside bounding box detection
+  const camModelPos = computeCameraModelPos();
+  const camInsideBox =
+    camModelPos.x >= 0 && camModelPos.x <= 1 &&
+    camModelPos.y >= 0 && camModelPos.y <= 1 &&
+    camModelPos.z >= 0 && camModelPos.z <= 1;
+
+  // Pass 1: back faces (exit points)
   gl.bindFramebuffer(gl.FRAMEBUFFER, backFBO);
   gl.viewport(0, 0, w, h);
   gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.enable(gl.CULL_FACE);
-  gl.cullFace(gl.FRONT);
+  if (camInsideBox) {
+    gl.clearDepth(0.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.disable(gl.CULL_FACE);
+    gl.depthFunc(gl.GREATER);
+  } else {
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.FRONT);
+  }
   gl.useProgram(backFaceProgram);
   gl.uniformMatrix4fv(gl.getUniformLocation(backFaceProgram, 'uMVP'), false, mvp);
   gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
@@ -558,14 +573,13 @@ function render3D() {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0, 0, w, h);
   gl.clearColor(0, 0, 0, 1);
+  gl.clearDepth(1.0);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.depthFunc(gl.LESS);
   gl.disable(gl.CULL_FACE);
   gl.useProgram(rayMarchProgram);
   gl.uniformMatrix4fv(gl.getUniformLocation(rayMarchProgram, 'uMVP'), false, mvp);
   gl.uniform2f(gl.getUniformLocation(rayMarchProgram, 'uScreen'), w, h);
-
-  // Camera position in model space for camera-inside-box handling
-  const camModelPos = computeCameraModelPos();
   gl.uniform3f(gl.getUniformLocation(rayMarchProgram, 'uCameraModelPos'), camModelPos.x, camModelPos.y, camModelPos.z);
 
   gl.activeTexture(gl.TEXTURE0);
