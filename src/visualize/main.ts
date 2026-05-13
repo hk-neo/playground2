@@ -405,16 +405,29 @@ uniform sampler2D uTF;
 uniform vec2 uScreen;
 uniform vec3 uCameraModelPos;
 out vec4 fragColor;
+
+vec2 rayBoxIntersect(vec3 origin, vec3 dir) {
+  vec3 invD = 1.0 / dir;
+  vec3 t0 = (vec3(0.0) - origin) * invD;
+  vec3 t1 = (vec3(1.0) - origin) * invD;
+  vec3 tN = min(t0, t1);
+  vec3 tF = max(t0, t1);
+  float tNear = max(max(tN.x, tN.y), tN.z);
+  float tFar = min(min(tF.x, tF.y), tF.z);
+  return vec2(tNear, tFar);
+}
+
 void main() {
-  vec2 uv = gl_FragCoord.xy / uScreen;
-  vec3 back = texture(uBackFace, uv).rgb;
-  if (back == vec3(0.0)) { fragColor = vec4(0.0); return; }
-  vec3 front;
-  if (gl_FrontFacing) {
-    front = vPos;
-  } else {
-    front = uCameraModelPos * 0.5 + 0.5;
-  }
+  vec3 camPos = uCameraModelPos * 0.5 + 0.5;
+  vec3 rayDir = normalize(vPos - camPos);
+
+  vec2 hits = rayBoxIntersect(camPos, rayDir);
+  if (hits.x > hits.y || hits.y < 0.0) { fragColor = vec4(0.0); return; }
+
+  float tStart = max(hits.x, 0.0);
+  vec3 front = camPos + rayDir * tStart;
+  vec3 back = camPos + rayDir * hits.y;
+
   vec3 dir = back - front;
   float len = length(dir);
   if (len < 0.001) { fragColor = vec4(0.0); return; }
@@ -547,9 +560,9 @@ function render3D() {
   // Camera inside bounding box detection
   const camModelPos = computeCameraModelPos();
   const camInsideBox =
-    camModelPos.x >= 0 && camModelPos.x <= 1 &&
-    camModelPos.y >= 0 && camModelPos.y <= 1 &&
-    camModelPos.z >= 0 && camModelPos.z <= 1;
+    camModelPos.x >= -1 && camModelPos.x <= 1 &&
+    camModelPos.y >= -1 && camModelPos.y <= 1 &&
+    camModelPos.z >= -1 && camModelPos.z <= 1;
 
   // Pass 1: back faces (exit points)
   gl.bindFramebuffer(gl.FRAMEBUFFER, backFBO);
