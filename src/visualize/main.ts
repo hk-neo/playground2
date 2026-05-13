@@ -12,12 +12,36 @@ import { uploadVolume3D } from '../webgl/texture';
 import { OrbitalCamera } from '../camera/orbital-camera';
 import { InputHandler } from '../input/input-handler';
 import { InputType } from '../shared/types/input';
+import { PatientDataManager } from '../patient/patient-data-manager';
+import type { PatientInfo } from '../shared/types/patient';
 
 let volume: VolumeData | null = null;
+const patientDataManager = new PatientDataManager();
 const extractor = new SliceExtractor();
 const wlww = new WLWWApplier();
 
 wlww.setDefaultCBCT();
+
+function formatDate(d: Date | null): string {
+  if (!d) return '—';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function updatePatientInfo(patient: PatientInfo | null) {
+  if (!patient) {
+    patientPanel.classList.remove('visible');
+    return;
+  }
+  patientPanel.classList.add('visible');
+  piName.textContent = patient.patientName;
+  piId.textContent = patient.patientID;
+  piBirth.textContent = formatDate(patient.birthDate);
+  piStudy.textContent = formatDate(patient.studyDate);
+  piModality.textContent = patient.modality || '—';
+  piDesc.textContent = patient.studyDescription || patient.seriesDescription || '—';
+}
+
+patientDataManager.onPatientChange((patient) => updatePatientInfo(patient));
 
 const axialCanvas = document.getElementById('axial-canvas') as HTMLCanvasElement;
 const coronalCanvas = document.getElementById('coronal-canvas') as HTMLCanvasElement;
@@ -34,6 +58,13 @@ const controlsMpm = document.getElementById('controls-mpm')!;
 const loadingEl = document.getElementById('loading')!;
 const loadBtn = document.getElementById('load-btn')!;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
+const patientPanel = document.getElementById('patient-panel')!;
+const piName = document.getElementById('pi-name')!;
+const piId = document.getElementById('pi-id')!;
+const piBirth = document.getElementById('pi-birth')!;
+const piStudy = document.getElementById('pi-study')!;
+const piModality = document.getElementById('pi-modality')!;
+const piDesc = document.getElementById('pi-desc')!;
 
 // 3D renderer state
 let gl3d: WebGL2RenderingContext | null = null;
@@ -205,9 +236,11 @@ async function handleFiles() {
   statusEl.textContent = `${files.length}개 DICOM 파일 파싱 중...`;
 
   try {
-    volume = await buildVolumeFromFiles(Array.from(files));
+    const { volumeData, firstTags } = await buildVolumeFromFiles(Array.from(files));
+    volume = volumeData;
     const [dx, dy, dz] = volume.dimensions;
     statusEl.textContent = `볼륨 로드 완료: ${dx}×${dy}×${dz} (${files.length}슬라이스)`;
+    if (firstTags) patientDataManager.loadFromDicom(firstTags);
 
     axialSlider.max = String(dz - 1);
     coronalSlider.max = String(dy - 1);
@@ -231,10 +264,11 @@ async function handleFiles() {
   }
 }
 
-async function buildVolumeFromFiles(files: File[]): Promise<VolumeData> {
+async function buildVolumeFromFiles(files: File[]): Promise<{ volumeData: VolumeData; firstTags: DicomTags | null }> {
   const registry = new TransferSyntaxRegistry();
 
   const sortedSlices: { position: number; buffer: ArrayBuffer; rows: number; cols: number }[] = [];
+  let firstTags: DicomTags | null = null;
 
   let processed = 0;
   for (const file of files) {
@@ -244,6 +278,7 @@ async function buildVolumeFromFiles(files: File[]): Promise<VolumeData> {
 
       const reader = new DicomTagReader(arrayBuffer);
       const tags: DicomTags = reader.parseAllTags();
+      if (!firstTags) firstTags = tags;
 
       const tsUid = (tags.get('00020010')?.value as string) || '';
       const tsDef = registry.lookup(tsUid);
@@ -317,11 +352,14 @@ async function buildVolumeFromFiles(files: File[]): Promise<VolumeData> {
     : 1;
 
   return {
-    buffer: volumeBuffer,
-    dimensions: [dx, dy, dz],
-    spacing: [0.2, 0.2, spacingZ],
-    origin: [0, 0, 0],
-    dataType: 'int16',
+    volumeData: {
+      buffer: volumeBuffer,
+      dimensions: [dx, dy, dz],
+      spacing: [0.2, 0.2, spacingZ],
+      origin: [0, 0, 0],
+      dataType: 'int16',
+    },
+    firstTags,
   };
 }
 

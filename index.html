@@ -456,6 +456,40 @@
       display: inline-flex;
       align-items: center;
     }
+
+    /* ── Patient Info Panel ────────────────────────── */
+    .patient-panel {
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border);
+      padding: 4px 16px;
+      display: none;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+      height: 26px;
+    }
+
+    .patient-panel.visible { display: flex; }
+
+    .pi-item {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pi-label {
+      color: var(--text-muted);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .pi-value {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
@@ -550,6 +584,16 @@
   <div id="loading">
     <div class="spinner"></div>
     <span class="loader-text">볼륨 구축 중...</span>
+  </div>
+
+  <!-- Patient Info -->
+  <div class="patient-panel" id="patient-panel">
+    <div class="pi-item"><span class="pi-label">환자</span><span class="pi-value" id="pi-name">—</span></div>
+    <div class="pi-item"><span class="pi-label">ID</span><span class="pi-value" id="pi-id">—</span></div>
+    <div class="pi-item"><span class="pi-label">생년월일</span><span class="pi-value" id="pi-birth">—</span></div>
+    <div class="pi-item"><span class="pi-label">검사일</span><span class="pi-value" id="pi-study">—</span></div>
+    <div class="pi-item"><span class="pi-label">Modality</span><span class="pi-value" id="pi-modality">—</span></div>
+    <div class="pi-item"><span class="pi-label">설명</span><span class="pi-value" id="pi-desc">—</span></div>
   </div>
 
   <!-- Status Bar -->
