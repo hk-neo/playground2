@@ -407,9 +407,11 @@ uniform vec3 uCameraModelPos;
 out vec4 fragColor;
 
 vec2 rayBoxIntersect(vec3 origin, vec3 dir) {
+  vec3 boxMin = vec3(0.002);
+  vec3 boxMax = vec3(0.998);
   vec3 invD = 1.0 / dir;
-  vec3 t0 = (vec3(0.0) - origin) * invD;
-  vec3 t1 = (vec3(1.0) - origin) * invD;
+  vec3 t0 = (boxMin - origin) * invD;
+  vec3 t1 = (boxMax - origin) * invD;
   vec3 tN = min(t0, t1);
   vec3 tF = max(t0, t1);
   float tNear = max(max(tN.x, tN.y), tN.z);
