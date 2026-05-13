@@ -403,11 +403,17 @@ uniform sampler2D uBackFace;
 uniform sampler3D uVolume;
 uniform sampler2D uTF;
 uniform vec2 uScreen;
+uniform vec3 uCameraModelPos;
 out vec4 fragColor;
 void main() {
   vec2 uv = gl_FragCoord.xy / uScreen;
   vec3 back = texture(uBackFace, uv).rgb;
-  vec3 front = vPos;
+  vec3 front;
+  if (gl_FrontFacing) {
+    front = vPos;
+  } else {
+    front = uCameraModelPos * 0.5 + 0.5;
+  }
   vec3 dir = back - front;
   float len = length(dir);
   if (len < 0.001) { fragColor = vec4(0.0); return; }
@@ -553,10 +559,14 @@ function render3D() {
   gl.viewport(0, 0, w, h);
   gl.clearColor(0, 0, 0, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.cullFace(gl.BACK);
+  gl.disable(gl.CULL_FACE);
   gl.useProgram(rayMarchProgram);
   gl.uniformMatrix4fv(gl.getUniformLocation(rayMarchProgram, 'uMVP'), false, mvp);
   gl.uniform2f(gl.getUniformLocation(rayMarchProgram, 'uScreen'), w, h);
+
+  // Camera position in model space for camera-inside-box handling
+  const camModelPos = computeCameraModelPos();
+  gl.uniform3f(gl.getUniformLocation(rayMarchProgram, 'uCameraModelPos'), camModelPos.x, camModelPos.y, camModelPos.z);
 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, backTex);
@@ -571,7 +581,6 @@ function render3D() {
   gl.uniform1i(gl.getUniformLocation(rayMarchProgram, 'uTF'), 2);
 
   gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
-  gl.disable(gl.CULL_FACE);
 }
 
 function computeMVP(): Mat4 {
@@ -590,6 +599,18 @@ function computeMVP(): Mat4 {
   const aspect = canvas3d.width / Math.max(1, canvas3d.height);
   const proj = camera.getProjectionMatrix(aspect);
   return mat4Mul(proj, mat4Mul(view, model));
+}
+
+function computeCameraModelPos(): { x: number; y: number; z: number } {
+  const pos = camera.getPosition();
+  if (!volume) return { x: 0, y: 0, z: 0 };
+  const [dx, dy, dz] = volume.dimensions;
+  const maxDim = Math.max(dx, dy, dz);
+  return {
+    x: pos.x * maxDim / dx,
+    y: pos.y * maxDim / dy,
+    z: pos.z * maxDim / dz,
+  };
 }
 
 function mat4Mul(a: Mat4, b: Mat4): Mat4 {
