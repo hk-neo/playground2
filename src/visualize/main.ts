@@ -13,10 +13,14 @@ import { OrbitalCamera } from '../camera/orbital-camera';
 import { InputHandler } from '../input/input-handler';
 import { InputType } from '../shared/types/input';
 import { PatientDataManager } from '../patient/patient-data-manager';
+import { SyncController } from '../sync/sync-controller';
+import { CoordinateTransformer } from '../sync/coordinate-transformer';
 import type { PatientInfo } from '../shared/types/patient';
 
 let volume: VolumeData | null = null;
 const patientDataManager = new PatientDataManager();
+const syncController = new SyncController();
+const coordTransformer = new CoordinateTransformer();
 const extractor = new SliceExtractor();
 const wlww = new WLWWApplier();
 
@@ -65,6 +69,9 @@ const piBirth = document.getElementById('pi-birth')!;
 const piStudy = document.getElementById('pi-study')!;
 const piModality = document.getElementById('pi-modality')!;
 const piDesc = document.getElementById('pi-desc')!;
+const axialCH = document.getElementById('axial-crosshair') as HTMLCanvasElement;
+const coronalCH = document.getElementById('coronal-crosshair') as HTMLCanvasElement;
+const sagittalCH = document.getElementById('sagittal-crosshair') as HTMLCanvasElement;
 
 // 3D renderer state
 let gl3d: WebGL2RenderingContext | null = null;
@@ -145,6 +152,52 @@ sagittalSlider.addEventListener('input', () => { updateSliderVal('sagittal'); re
 wlSlider.addEventListener('input', () => { updateSliderVal('wl'); renderAll(); });
 wwSlider.addEventListener('input', () => { updateSliderVal('ww'); renderAll(); });
 tfSlider.addEventListener('input', () => { updateSliderVal('tf'); updateTF(); render3D(); });
+
+// ===== Crosshair Overlay =====
+
+function drawCrosshair(
+  chCanvas: HTMLCanvasElement,
+  hPos: number, hMax: number,
+  vPos: number, vMax: number,
+) {
+  const ctx = chCanvas.getContext('2d');
+  if (!ctx || !volume) return;
+  const w = chCanvas.width;
+  const h = chCanvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const hx = Math.round((hPos / Math.max(hMax, 1)) * w);
+  const vy = Math.round((vPos / Math.max(vMax, 1)) * h);
+
+  ctx.strokeStyle = '#00e5c3';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+
+  ctx.beginPath();
+  ctx.moveTo(hx, 0); ctx.lineTo(hx, h);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(0, vy); ctx.lineTo(w, vy);
+  ctx.stroke();
+
+  ctx.setLineDash([]);
+}
+
+function updateCrosshairs() {
+  if (!volume) return;
+  const [dx, dy, dz] = volume.dimensions;
+  const ax = +axialSlider.value;
+  const cr = +coronalSlider.value;
+  const sg = +sagittalSlider.value;
+
+  // Axial: horizontal=sagittal, vertical=coronal
+  drawCrosshair(axialCH, sg, dx, cr, dy);
+  // Coronal: horizontal=sagittal, vertical=axial
+  drawCrosshair(coronalCH, sg, dx, ax, dz);
+  // Sagittal: horizontal=coronal, vertical=axial
+  drawCrosshair(sagittalCH, cr, dy, ax, dz);
+}
 
 // ===== MPR Viewport Interactions =====
 
@@ -370,6 +423,7 @@ function renderAll() {
   renderSlice(coronalCanvas, MPRPlane.Coronal, +coronalSlider.value);
   renderSlice(sagittalCanvas, MPRPlane.Sagittal, +sagittalSlider.value);
   render3D();
+  updateCrosshairs();
 }
 
 function renderSlice(canvas: HTMLCanvasElement, plane: MPRPlane, position: number) {

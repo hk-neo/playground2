@@ -490,6 +490,14 @@
       color: var(--text-primary);
       font-weight: 500;
     }
+
+    /* ── Crosshair Overlay ─────────────────────────── */
+    .crosshair-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+    }
   </style>
 </head>
 <body>
@@ -548,6 +556,7 @@
   <div class="vp-grid" id="viewport-container">
     <div class="vp">
       <canvas id="axial-canvas" width="512" height="512" class="mpr"></canvas>
+      <canvas id="axial-crosshair" class="crosshair-overlay" width="512" height="512"></canvas>
       <div class="vp-tag">Axial</div>
       <span class="vp-hint">Scroll: slice &middot; Drag: WL/WW</span>
       <div class="vp-slice-bar">
@@ -557,6 +566,7 @@
     </div>
     <div class="vp">
       <canvas id="coronal-canvas" width="512" height="512" class="mpr"></canvas>
+      <canvas id="coronal-crosshair" class="crosshair-overlay" width="512" height="512"></canvas>
       <div class="vp-tag">Coronal</div>
       <span class="vp-hint">Scroll: slice &middot; Drag: WL/WW</span>
       <div class="vp-slice-bar">
@@ -566,6 +576,7 @@
     </div>
     <div class="vp">
       <canvas id="sagittal-canvas" width="512" height="512" class="mpr"></canvas>
+      <canvas id="sagittal-crosshair" class="crosshair-overlay" width="512" height="512"></canvas>
       <div class="vp-tag">Sagittal</div>
       <span class="vp-hint">Scroll: slice &middot; Drag: WL/WW</span>
       <div class="vp-slice-bar">
