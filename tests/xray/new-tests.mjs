@@ -281,6 +281,37 @@ const tests = {
     return result('PLAYG-2534', 'PASSED',
       `카메라 내부 진입 수정 검증: uniform=${fixCheck.hasCameraPosUniform}, cullFace=${fixCheck.cullFaceDuringRayMarch}`);
   },
+
+  // ─── PLAYG-2542: CBCT 외곽 벽 백색 아티팩트 미발생 검증 ───
+  'PLAYG-2542': async (page) => {
+    const shaderCheck = await page.evaluate(() => {
+      const c = document.getElementById('3d-canvas');
+      if (!c) return { error: 'no canvas' };
+      const gl = c.getContext('webgl2');
+      if (!gl) return { error: 'no gl' };
+
+      const program = gl.getParameter(gl.CURRENT_PROGRAM);
+      if (!program) return { error: 'no program' };
+
+      // Verify ray-box intersection is used (no gl_FrontFacing dependency)
+      const fragSrc = gl.getShaderSource(gl.getAttachedShaders(program).find(s => gl.getShaderParameter(s, gl.SHADER_TYPE) === gl.FRAGMENT_SHADER));
+      if (!fragSrc) return { error: 'cannot read shader source' };
+
+      const hasRayBoxIntersect = fragSrc.includes('rayBoxIntersect');
+      const noFrontFacing = !fragSrc.includes('gl_FrontFacing');
+      const hasCamPosUniform = gl.getUniformLocation(program, 'uCameraModelPos') !== null;
+
+      return { hasRayBoxIntersect, noFrontFacing, hasCamPosUniform };
+    });
+
+    if (shaderCheck.error) throw new Error(shaderCheck.error);
+    if (!shaderCheck.hasRayBoxIntersect) throw new Error('rayBoxIntersect function not found in shader');
+    if (!shaderCheck.noFrontFacing) throw new Error('gl_FrontFacing still used in shader');
+    if (!shaderCheck.hasCamPosUniform) throw new Error('uCameraModelPos uniform missing');
+
+    return result('PLAYG-2542', 'PASSED',
+      `백색 아티팩트 수정 검증: rayBox=${shaderCheck.hasRayBoxIntersect}, noFrontFacing=${shaderCheck.noFrontFacing}`);
+  },
 };
 
 async function run() {
