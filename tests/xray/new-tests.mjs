@@ -246,6 +246,54 @@ const tests = {
     if (loadStable.supported && !loadStable.stable) throw new Error('메모리 임계값 초과');
     return result('PLAYG-2529', 'PASSED', `대용량 로드 안정성: heap=${loadStable.used || 'N/A'}MB / ${loadStable.limit || 'N/A'}MB`);
   },
+
+  // ─── PLAYG-2534: 3D 볼륨 렌더링 확대 시 모델 가시성 유지 검증 ───
+  'PLAYG-2534': async (page) => {
+    // Simulate extreme zoom by setting camera distance very small (inside bounding box)
+    const zoomResult = await page.evaluate(() => {
+      const canvas3d = document.getElementById('3d-canvas');
+      if (!canvas3d) return { error: '3D canvas not found' };
+
+      const gl = canvas3d.getContext('webgl2');
+      if (!gl) return { error: 'WebGL2 not available' };
+
+      // Read current 3D canvas pixels (before zoom)
+      const beforePixels = new Uint8Array(4);
+      gl.readPixels(Math.floor(canvas3d.width / 2), Math.floor(canvas3d.height / 2), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, beforePixels);
+
+      // Simulate extreme zoom via wheel events
+      for (let i = 0; i < 50; i++) {
+        canvas3d.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true }));
+      }
+
+      // Wait for render
+      return new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const afterPixels = new Uint8Array(4);
+            gl.readPixels(Math.floor(canvas3d.width / 2), Math.floor(canvas3d.height / 2), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, afterPixels);
+
+            const beforeBrightness = beforePixels[0] + beforePixels[1] + beforePixels[2];
+            const afterBrightness = afterPixels[0] + afterPixels[1] + afterPixels[2];
+            const hasContent = afterBrightness > 0;
+            const notBlack = afterPixels[3] > 0;
+
+            resolve({
+              before: Array.from(beforePixels),
+              after: Array.from(afterPixels),
+              hasContent,
+              notBlack,
+              zoomLevel: 'inside-bounding-box',
+            });
+          });
+        });
+      });
+    });
+
+    if (zoomResult.error) throw new Error(zoomResult.error);
+    if (!zoomResult.hasContent) throw new Error(`3D 모델이 확대 시 사라짐: after=${zoomResult.after}`);
+    return result('PLAYG-2534', 'PASSED', `확대 시 모델 가시성 유지: pixel=${zoomResult.after}`);
+  },
 };
 
 async function run() {
