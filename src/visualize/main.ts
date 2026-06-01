@@ -317,10 +317,10 @@ async function handleFiles() {
   }
 }
 
-/** Explicit VR 짧은 길이 필드 VR 타입 집합 */
+/** Explicit VR 짧은 길이 필드 VR 타입 집합 (DICOM PS3.5 long form VR 제외) */
 const SHORT_VR = new Set([
   'AE', 'AS', 'AT', 'CS', 'DA', 'DS', 'DT', 'FL', 'FD', 'IS', 'LO', 'LT',
-  'PN', 'SH', 'SL', 'SS', 'ST', 'TM', 'UI', 'UL', 'UN', 'US', 'UR', 'UT',
+  'PN', 'SH', 'SL', 'SS', 'ST', 'TM', 'UI', 'UL', 'US',
 ]);
 
 function isShortVR(vr: string): boolean {
@@ -393,7 +393,9 @@ async function buildVolumeFromFiles(files: File[]): Promise<{ volumeData: Volume
       }
 
       sortedSlices.push({ position, buffer: decodedBuffer, rows, cols });
-    } catch { /* skip */ }
+    } catch (err) {
+      console.error(`[DICOM] 파일 파싱 실패 (${file.name}):`, err);
+    }
 
     processed++;
     if (processed % 50 === 0) {

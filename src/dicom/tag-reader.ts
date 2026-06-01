@@ -12,12 +12,16 @@ const GROUP_FILE_META_INFO = 0x0002;
 const TAG_TRANSFER_SYNTAX_UID = 0x00020010;
 const TAG_PIXEL_DATA = 0x7fe00010;
 
-/** VR 타입에 따른 길이 필드 크기 (Explicit VR) */
+/**
+ * VR 타입에 따른 길이 필드 크기 (Explicit VR).
+ * DICOM PS3.5 Section 7.1.2: short form은 2바이트 길이, long form은 reserved(2) + 4바이트 길이.
+ * Long form VR: OB, OD, OF, OL, OW, SQ, UC, UN, UR, UT
+ */
 const SHORT_VR_LENGTH_SIZE: Record<string, boolean> = {
   AE: true, AS: true, AT: true, CS: true, DA: true, DS: true, DT: true,
   FL: true, FD: true, IS: true, LO: true, LT: true, PN: true, SH: true,
-  SL: true, SS: true, ST: true, TM: true, UI: true, UL: true, UN: true,
-  US: true, UR: true, UT: true,
+  SL: true, SS: true, ST: true, TM: true, UI: true, UL: true,
+  US: true,
 };
 
 /** DICOM 태그 리더 - 메타헤더 검증, 태그 파싱, VR 해석 */
