@@ -1,6 +1,4 @@
-import { DicomTagReader } from '../dicom/tag-reader';
-import { TransferSyntaxRegistry } from '../encoding/transfer-syntax-registry';
-import { PixelDataDecoder } from '../dicom/pixel-data-decoder';
+import { DicomTagReader, PixelDataDecoder, TransferSyntaxRegistry } from '../dicom';
 import { SliceExtractor } from '../mpr/slice-extractor';
 import { WLWWApplier } from '../mpr/wlww-applier';
 import { MPRPlane } from '../shared/types/rendering';

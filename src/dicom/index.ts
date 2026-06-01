@@ -1,5 +1,27 @@
-export { DicomFileLoader } from './file-loader';
-export { DicomTagReader } from './tag-reader';
-export { TransferSyntaxResolver } from './transfer-syntax-resolver';
-export { PixelDataDecoder } from './pixel-data-decoder';
-export { parseEncapsulatedFrames, extractSingleFrame } from './encapsulated-parser';
+export {
+  DicomFileLoader,
+  DicomTagReader,
+  TransferSyntaxResolver,
+  TransferSyntaxRegistry,
+  PixelDataDecoder,
+  parseEncapsulatedFrames,
+  extractSingleFrame,
+  CharEncodingDecoder,
+} from 'dicom-parser';
+
+export type {
+  DicomTag,
+  TransferSyntaxInfo,
+  TransferSyntaxDef,
+  DecodingInfo,
+  DicomTags,
+  IFileLoader,
+  EncapsulatedFrame,
+} from 'dicom-parser';
+
+export {
+  InvalidDicomError,
+  MissingTagError,
+  UnsupportedTransferSyntaxError,
+  CorruptedFileError,
+} from 'dicom-parser';
