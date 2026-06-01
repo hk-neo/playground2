@@ -62,6 +62,58 @@ export class DicomBufferBuilder {
     return this;
   }
 
+  /** Encapsulated pixel data 태그 추가 (OW VR, undefined length + items + delimiter) */
+  addEncapsulatedPixelDataTag(frames: Uint8Array[]): this {
+    // 태그 헤더: (7FE0,0010) OW reserved(2) length=0xFFFFFFFF
+    const header = new ArrayBuffer(12);
+    const hdv = new DataView(header);
+    hdv.setUint16(0, 0x7FE0, true);  // group
+    hdv.setUint16(2, 0x0010, true);  // element
+    const hbytes = new Uint8Array(header);
+    hbytes[4] = 'O'.charCodeAt(0);
+    hbytes[5] = 'W'.charCodeAt(0);
+    // bytes 6-7: reserved (0)
+    hdv.setUint32(8, 0xFFFFFFFF, true); // undefined length
+    this.parts.push(new Uint8Array(header));
+
+    // 각 프레임을 Item으로 추가
+    for (const frame of frames) {
+      this.addEncapsulatedItem(frame);
+    }
+
+    // Sequence Delimiter (FFFE,E0DD) + 4 zero bytes
+    this.addSequenceDelimiter();
+
+    return this;
+  }
+
+  /** Encapsulated Item 추가: (FFFE,E000) + length(4) + data (+ padding if odd) */
+  addEncapsulatedItem(data: Uint8Array): this {
+    const itemHeader = new ArrayBuffer(8);
+    const dv = new DataView(itemHeader);
+    dv.setUint16(0, 0xFFFE, true);
+    dv.setUint16(2, 0xE000, true);
+    dv.setUint32(4, data.length, true);
+    this.parts.push(new Uint8Array(itemHeader));
+    this.parts.push(data);
+    // DICOM even-byte alignment: pad odd-length items
+    if (data.length % 2 !== 0) {
+      this.parts.push(new Uint8Array([0x00]));
+    }
+    return this;
+  }
+
+  /** Sequence Delimiter 추가: (FFFE,E0DD) + 4 zero bytes */
+  addSequenceDelimiter(): this {
+    const delim = new ArrayBuffer(8);
+    const dv = new DataView(delim);
+    dv.setUint16(0, 0xFFFE, true);
+    dv.setUint16(2, 0xE0DD, true);
+    dv.setUint32(4, 0, true);
+    this.parts.push(new Uint8Array(delim));
+    return this;
+  }
+
   /** 바이트 배열 직접 추가 */
   addBytes(bytes: Uint8Array): this {
     this.parts.push(bytes);

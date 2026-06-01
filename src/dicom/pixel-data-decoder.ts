@@ -1,5 +1,7 @@
 import type { TransferSyntaxInfo, DecodingInfo } from '../shared/types/dicom';
 import { CorruptedFileError } from '../shared/errors/dicom';
+import { Decoder } from 'jpeg-lossless-decoder-js';
+import { extractSingleFrame } from './encapsulated-parser';
 
 /** 압축/비압축 픽셀 데이터 디코딩 */
 export class PixelDataDecoder {
@@ -15,7 +17,7 @@ export class PixelDataDecoder {
     this.columns = info.columns;
   }
 
-  /** 픽셀 데이터 디코딩 */
+  /** 비압축 픽셀 데이터 디코딩 */
   decode(pixelBuffer: ArrayBuffer, syntax: TransferSyntaxInfo): ArrayBuffer {
     if (syntax.isCompressed) {
       throw new CorruptedFileError(
@@ -29,6 +31,41 @@ export class PixelDataDecoder {
     }
 
     return pixelBuffer;
+  }
+
+  /**
+   * 압축 픽셀 데이터 디코딩 (JPEG Lossless 등).
+   *
+   * @param fullBuffer - 전체 DICOM 파일 ArrayBuffer
+   * @param pixelDataStart - encapsulated items 시작 오프셋 (PixelData 태그 헤더 이후)
+   * @param syntax - 전송 구문 정보
+   * @param bitsAllocated - 픽셀 당 할당 비트 수
+   * @returns 디코딩된 픽셀 데이터 ArrayBuffer
+   */
+  decodeCompressed(
+    fullBuffer: ArrayBuffer,
+    pixelDataStart: number,
+    syntax: TransferSyntaxInfo,
+    bitsAllocated: number,
+  ): ArrayBuffer {
+    if (!syntax.isCompressed) {
+      throw new CorruptedFileError(
+        `decodeCompressed() called for uncompressed syntax '${syntax.name}'`,
+      );
+    }
+
+    return this.decodeJpegLossless(fullBuffer, pixelDataStart, bitsAllocated);
+  }
+
+  /** JPEG Lossless 디코딩 */
+  private decodeJpegLossless(
+    fullBuffer: ArrayBuffer,
+    pixelDataStart: number,
+    _bitsAllocated: number,
+  ): ArrayBuffer {
+    const jpegBuffer = extractSingleFrame(fullBuffer, pixelDataStart);
+    const decoder = new Decoder();
+    return decoder.decompress(jpegBuffer, 0, jpegBuffer.byteLength);
   }
 
   /** 픽셀 데이터 무결성 검증 */

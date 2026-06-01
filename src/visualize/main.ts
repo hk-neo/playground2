@@ -5,7 +5,7 @@ import { SliceExtractor } from '../mpr/slice-extractor';
 import { WLWWApplier } from '../mpr/wlww-applier';
 import { MPRPlane } from '../shared/types/rendering';
 import type { VolumeData } from '../shared/types/volume';
-import type { DecodingInfo } from '../shared/types/dicom';
+import type { DecodingInfo, TransferSyntaxInfo } from '../shared/types/dicom';
 import type { DicomTags } from '../shared/types/patient';
 import type { Mat4 } from '../shared/types/core';
 import { uploadVolume3D } from '../webgl/texture';
@@ -317,6 +317,16 @@ async function handleFiles() {
   }
 }
 
+/** Explicit VR 짧은 길이 필드 VR 타입 집합 */
+const SHORT_VR = new Set([
+  'AE', 'AS', 'AT', 'CS', 'DA', 'DS', 'DT', 'FL', 'FD', 'IS', 'LO', 'LT',
+  'PN', 'SH', 'SL', 'SS', 'ST', 'TM', 'UI', 'UL', 'UN', 'US', 'UR', 'UT',
+]);
+
+function isShortVR(vr: string): boolean {
+  return SHORT_VR.has(vr);
+}
+
 async function buildVolumeFromFiles(files: File[]): Promise<{ volumeData: VolumeData; firstTags: DicomTags | null }> {
   const registry = new TransferSyntaxRegistry();
 
@@ -352,21 +362,34 @@ async function buildVolumeFromFiles(files: File[]): Promise<{ volumeData: Volume
       const pixelTag = tags.get('7fe00010');
       if (!pixelTag || rows === 0 || cols === 0) continue;
 
-      const pixelOffset = pixelTag.offset + 4;
-      const pixelLength = pixelTag.length;
-      const pixelData = new ArrayBuffer(pixelLength);
-      new Uint8Array(pixelData).set(uint8.slice(pixelOffset, pixelOffset + pixelLength));
+      // VR long form (OW, OB 등): header = group(2) + element(2) + vr(2) + reserved(2) + length(4) = 12
+      const headerSize = isShortVR(pixelTag.vr) ? 8 : 12;
+      const pixelDataStart = pixelTag.offset + headerSize;
+      const isEncapsulated = pixelTag.length === 0xFFFFFFFF;
 
-      let decodedBuffer: ArrayBuffer = pixelData;
-      if (tsDef && !tsDef.isCompressed) {
-        const decodeInfo: DecodingInfo = { bitsAllocated, bitsStored, pixelRepresentation, rows, columns: cols };
-        const decoder = new PixelDataDecoder(decodeInfo);
-        decodedBuffer = decoder.decode(pixelData, {
-          uid: tsDef.uid,
-          name: tsDef.name,
-          isCompressed: tsDef.isCompressed,
-          isLittleEndian: tsDef.isLittleEndian,
-        });
+      const decodeInfo: DecodingInfo = { bitsAllocated, bitsStored, pixelRepresentation, rows, columns: cols };
+      const decoder = new PixelDataDecoder(decodeInfo);
+      const syntaxInfo = {
+        uid: tsDef.uid,
+        name: tsDef.name,
+        isCompressed: tsDef.isCompressed,
+        isLittleEndian: tsDef.isLittleEndian,
+      };
+
+      let decodedBuffer: ArrayBuffer;
+
+      if (tsDef.isCompressed && isEncapsulated) {
+        // 압축 경로: encapsulated pixel data → JPEG 디코딩
+        decodedBuffer = decoder.decodeCompressed(arrayBuffer, pixelDataStart, syntaxInfo, bitsAllocated);
+      } else if (!tsDef.isCompressed && !isEncapsulated) {
+        // 비압축 경로: raw pixel data 복사 + 엔디안 변환
+        const pixelLength = pixelTag.length;
+        const pixelData = new ArrayBuffer(pixelLength);
+        new Uint8Array(pixelData).set(uint8.slice(pixelDataStart, pixelDataStart + pixelLength));
+        decodedBuffer = decoder.decode(pixelData, syntaxInfo);
+      } else {
+        // 전송 구문과 encapsulated 여부 불일치 — 스킵
+        continue;
       }
 
       sortedSlices.push({ position, buffer: decodedBuffer, rows, cols });
