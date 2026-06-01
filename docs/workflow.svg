@@ -1,0 +1,39 @@
+<svg width="600" height="400" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="600" height="400" fill="#ffffff" />
+  
+  <!-- Boxes -->
+  <rect x="50" y="50" width="120" height="60" rx="5" fill="#deebff" stroke="#0747a6" stroke-width="2"/>
+  <text x="110" y="80" font-family="Arial" font-size="14" text-anchor="middle" font-weight="bold">Jira Cloud</text>
+  <text x="110" y="95" font-family="Arial" font-size="10" text-anchor="middle">(Issue Tracking)</text>
+
+  <rect x="240" y="50" width="120" height="60" rx="5" fill="#fff0b3" stroke="#ff991f" stroke-width="2"/>
+  <text x="300" y="80" font-family="Arial" font-size="14" text-anchor="middle" font-weight="bold">AutoDevAgent</text>
+  <text x="300" y="95" font-family="Arial" font-size="10" text-anchor="middle">(AI Agent)</text>
+
+  <rect x="430" y="50" width="120" height="60" rx="5" fill="#f4f5f7" stroke="#42526e" stroke-width="2"/>
+  <text x="490" y="80" font-family="Arial" font-size="14" text-anchor="middle" font-weight="bold">GitHub</text>
+  <text x="490" y="95" font-family="Arial" font-size="10" text-anchor="middle">(SCM)</text>
+
+  <rect x="240" y="180" width="120" height="60" rx="5" fill="#e3fcef" stroke="#00875a" stroke-width="2"/>
+  <text x="300" y="210" font-family="Arial" font-size="14" text-anchor="middle" font-weight="bold">AI Engine</text>
+  <text x="300" y="225" font-family="Arial" font-size="10" text-anchor="middle">(Claude/GLM)</text>
+
+  <!-- Arrows -->
+  <path d="M 170 80 L 240 80" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+  <path d="M 360 80 L 430 80" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+  <path d="M 300 110 L 300 180" stroke="#333" stroke-width="2" fill="none"/>
+  
+  <path d="M 110 150 L 110 110" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="110" y="170" font-family="Arial" font-size="12" text-anchor="middle">!command 입력</text>
+
+  <path d="M 490 110 L 490 150" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="490" y="170" font-family="Arial" font-size="12" text-anchor="middle">코드/문서 Push</text>
+
+  <!-- Arrowhead definition -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333" />
+    </marker>
+  </defs>
+</svg>

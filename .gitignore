@@ -19,6 +19,11 @@ config/
 .vscode/
 .idea/
 
+# Test artifacts
+screenshots/
+test-screenshots/
+.playwright-mcp/
+
 # OS
 .DS_Store
 
