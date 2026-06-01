@@ -331,6 +331,10 @@ async function buildVolumeFromFiles(files: File[]): Promise<{ volumeData: Volume
   const sortedSlices: { position: number; buffer: ArrayBuffer; rows: number; cols: number }[] = [];
   let firstTags: DicomTags | null = null;
 
+  // 모든 슬라이스가 동일 차원/전송구문이므로 디코더를 루프 밖에서 재사용
+  let sharedDecoder: PixelDataDecoder | null = null;
+  let sharedSyntaxInfo: { uid: string; name: string; isCompressed: boolean; isLittleEndian: boolean } | null = null;
+
   let processed = 0;
   for (const file of files) {
     try {
@@ -365,14 +369,19 @@ async function buildVolumeFromFiles(files: File[]): Promise<{ volumeData: Volume
       const pixelDataStart = pixelTag.offset + headerSize;
       const isEncapsulated = pixelTag.length === 0xFFFFFFFF;
 
-      const decodeInfo: DecodingInfo = { bitsAllocated, bitsStored, pixelRepresentation, rows, columns: cols };
-      const decoder = new PixelDataDecoder(decodeInfo);
-      const syntaxInfo = {
-        uid: tsDef.uid,
-        name: tsDef.name,
-        isCompressed: tsDef.isCompressed,
-        isLittleEndian: tsDef.isLittleEndian,
-      };
+      // 첫 슬라이스에서 디코더 생성, 이후 재사용 (JPEG Decoder 인스턴스 재사용)
+      if (!sharedDecoder) {
+        const decodeInfo: DecodingInfo = { bitsAllocated, bitsStored, pixelRepresentation, rows, columns: cols };
+        sharedDecoder = new PixelDataDecoder(decodeInfo);
+        sharedSyntaxInfo = {
+          uid: tsDef.uid,
+          name: tsDef.name,
+          isCompressed: tsDef.isCompressed,
+          isLittleEndian: tsDef.isLittleEndian,
+        };
+      }
+      const decoder = sharedDecoder;
+      const syntaxInfo = sharedSyntaxInfo;
 
       let decodedBuffer: ArrayBuffer;
 
