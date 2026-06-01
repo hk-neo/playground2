@@ -19,7 +19,7 @@
     "vitest": "^4.1.5"
   },
   "dependencies": {
-    "dicom-parser": "file:../dicom-parser",
+    "neo-dicom-parser": "github:NeobiotechLabs/neo-dicom-parser",
     "jpeg-lossless-decoder-js": "^2.1.2"
   }
 }

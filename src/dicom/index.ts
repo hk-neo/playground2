@@ -8,7 +8,7 @@ export {
   parseEncapsulatedFrames,
   extractSingleFrame,
   CharEncodingDecoder,
-} from 'dicom-parser';
+} from 'neo-dicom-parser';
 
 export type {
   DicomTag,
@@ -18,11 +18,11 @@ export type {
   DicomTags,
   IFileLoader,
   EncapsulatedFrame,
-} from 'dicom-parser';
+} from 'neo-dicom-parser';
 
 export {
   InvalidDicomError,
   MissingTagError,
   UnsupportedTransferSyntaxError,
   CorruptedFileError,
-} from 'dicom-parser';
+} from 'neo-dicom-parser';
