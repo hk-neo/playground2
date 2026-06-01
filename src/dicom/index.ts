@@ -4,6 +4,7 @@ export {
   TransferSyntaxResolver,
   TransferSyntaxRegistry,
   PixelDataDecoder,
+  ParallelJpegDecoder,
   parseEncapsulatedFrames,
   extractSingleFrame,
   CharEncodingDecoder,

@@ -1,4 +1,4 @@
-import { DicomTagReader, PixelDataDecoder, TransferSyntaxRegistry } from '../dicom';
+import { DicomTagReader, PixelDataDecoder, TransferSyntaxRegistry, ParallelJpegDecoder } from '../dicom';
 import { SliceExtractor } from '../mpr/slice-extractor';
 import { WLWWApplier } from '../mpr/wlww-applier';
 import { MPRPlane } from '../shared/types/rendering';
@@ -328,19 +328,29 @@ function isShortVR(vr: string): boolean {
 async function buildVolumeFromFiles(files: File[]): Promise<{ volumeData: VolumeData; firstTags: DicomTags | null }> {
   const registry = new TransferSyntaxRegistry();
 
-  const sortedSlices: { position: number; buffer: ArrayBuffer; rows: number; cols: number }[] = [];
   let firstTags: DicomTags | null = null;
+  const isCompressedSeries: boolean[] = [];
 
-  // 모든 슬라이스가 동일 차원/전송구문이므로 디코더를 루프 밖에서 재사용
-  let sharedDecoder: PixelDataDecoder | null = null;
-  let sharedSyntaxInfo: { uid: string; name: string; isCompressed: boolean; isLittleEndian: boolean } | null = null;
+  // Phase 1: 메인 스레드에서 태그 파싱만 빠르게 수행 (~0ms/file)
+  const parsedSlices: {
+    index: number;
+    position: number;
+    rows: number;
+    cols: number;
+    arrayBuffer: ArrayBuffer;
+    pixelDataStart: number;
+    isEncapsulated: boolean;
+    tsDef: { uid: string; name: string; isCompressed: boolean; isLittleEndian: boolean };
+    bitsAllocated: number;
+    bitsStored: number;
+    pixelRepresentation: number;
+  }[] = [];
 
-  let processed = 0;
-  for (const file of files) {
+  statusEl.textContent = `태그 파싱 중... (0/${files.length})`;
+
+  for (let i = 0; i < files.length; i++) {
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const uint8 = new Uint8Array(arrayBuffer);
-
+      const arrayBuffer = await files[i].arrayBuffer();
       const reader = new DicomTagReader(arrayBuffer);
       const tags: DicomTags = reader.parseAllTags();
       if (!firstTags) firstTags = tags;
@@ -364,54 +374,68 @@ async function buildVolumeFromFiles(files: File[]): Promise<{ volumeData: Volume
       const pixelTag = tags.get('7fe00010');
       if (!pixelTag || rows === 0 || cols === 0) continue;
 
-      // VR long form (OW, OB 등): header = group(2) + element(2) + vr(2) + reserved(2) + length(4) = 12
       const headerSize = isShortVR(pixelTag.vr) ? 8 : 12;
       const pixelDataStart = pixelTag.offset + headerSize;
       const isEncapsulated = pixelTag.length === 0xFFFFFFFF;
+      isCompressedSeries.push(tsDef.isCompressed && isEncapsulated);
 
-      // 첫 슬라이스에서 디코더 생성, 이후 재사용 (JPEG Decoder 인스턴스 재사용)
-      if (!sharedDecoder) {
-        const decodeInfo: DecodingInfo = { bitsAllocated, bitsStored, pixelRepresentation, rows, columns: cols };
-        sharedDecoder = new PixelDataDecoder(decodeInfo);
-        sharedSyntaxInfo = {
-          uid: tsDef.uid,
-          name: tsDef.name,
-          isCompressed: tsDef.isCompressed,
-          isLittleEndian: tsDef.isLittleEndian,
-        };
-      }
-      const decoder = sharedDecoder;
-      const syntaxInfo = sharedSyntaxInfo;
-
-      let decodedBuffer: ArrayBuffer;
-
-      if (tsDef.isCompressed && isEncapsulated) {
-        // 압축 경로: encapsulated pixel data → JPEG 디코딩
-        decodedBuffer = decoder.decodeCompressed(arrayBuffer, pixelDataStart, syntaxInfo, bitsAllocated);
-      } else if (!tsDef.isCompressed && !isEncapsulated) {
-        // 비압축 경로: raw pixel data 복사 + 엔디안 변환
-        const pixelLength = pixelTag.length;
-        const pixelData = new ArrayBuffer(pixelLength);
-        new Uint8Array(pixelData).set(uint8.slice(pixelDataStart, pixelDataStart + pixelLength));
-        decodedBuffer = decoder.decode(pixelData, syntaxInfo);
-      } else {
-        // 전송 구문과 encapsulated 여부 불일치 — 스킵
-        continue;
-      }
-
-      sortedSlices.push({ position, buffer: decodedBuffer, rows, cols });
+      parsedSlices.push({
+        index: i, position, rows, cols, arrayBuffer, pixelDataStart, isEncapsulated,
+        tsDef: { uid: tsDef.uid, name: tsDef.name, isCompressed: tsDef.isCompressed, isLittleEndian: tsDef.isLittleEndian },
+        bitsAllocated, bitsStored, pixelRepresentation,
+      });
     } catch (err) {
-      console.error(`[DICOM] 파일 파싱 실패 (${file.name}):`, err);
+      console.error(`[DICOM] 태그 파싱 실패 (${files[i].name}):`, err);
     }
 
-    processed++;
-    if (processed % 50 === 0) {
-      statusEl.textContent = `파싱 중... ${processed}/${files.length}`;
+    if (i % 100 === 0) {
+      statusEl.textContent = `태그 파싱 중... (${i + 1}/${files.length})`;
       await new Promise(r => setTimeout(r, 0));
     }
   }
 
-  sortedSlices.sort((a, b) => a.position - b.position);
+  if (parsedSlices.length === 0) throw new Error('No valid DICOM slices found');
+
+  // Phase 2: 픽셀 데이터 디코딩
+  const hasCompressed = isCompressedSeries.some(Boolean);
+  const firstParsed = parsedSlices[0];
+  const decodeInfo: DecodingInfo = {
+    bitsAllocated: firstParsed.bitsAllocated, bitsStored: firstParsed.bitsStored,
+    pixelRepresentation: firstParsed.pixelRepresentation, rows: firstParsed.rows, columns: firstParsed.cols,
+  };
+  const decoder = new PixelDataDecoder(decodeInfo);
+
+  let decodedBuffers: ArrayBuffer[];
+
+  if (hasCompressed) {
+    // 압축: Web Worker로 병렬 디코딩
+    statusEl.textContent = `JPEG 디코딩 중... (Web Workers)`;
+    await new Promise(r => setTimeout(r, 0));
+
+    const parallelDecoder = new ParallelJpegDecoder(
+      () => new Worker(new URL('../jpeg-decoder-worker.ts', import.meta.url), { type: 'module' }),
+    );
+    decodedBuffers = await parallelDecoder.decodeAll(
+      parsedSlices.map((s) => ({ buffer: s.arrayBuffer, pixelDataStart: s.pixelDataStart })),
+    );
+  } else {
+    // 비압축: 메인 스레드에서 빠르게 처리
+    decodedBuffers = parsedSlices.map((s) => {
+      const uint8 = new Uint8Array(s.arrayBuffer);
+      const pixelLength = s.arrayBuffer.byteLength - s.pixelDataStart;
+      const pixelData = new ArrayBuffer(pixelLength);
+      new Uint8Array(pixelData).set(uint8.slice(s.pixelDataStart, s.pixelDataStart + pixelLength));
+      return decoder.decode(pixelData, {
+        uid: s.tsDef.uid, name: s.tsDef.name,
+        isCompressed: s.tsDef.isCompressed, isLittleEndian: s.tsDef.isLittleEndian,
+      });
+    });
+  }
+
+  // Phase 3: 볼륨 구축
+  const sortedSlices = parsedSlices
+    .map((s, i) => ({ position: s.position, buffer: decodedBuffers[i], rows: s.rows, cols: s.cols }))
+    .sort((a, b) => a.position - b.position);
   if (sortedSlices.length === 0) throw new Error('No valid DICOM slices found');
 
   const first = sortedSlices[0];
