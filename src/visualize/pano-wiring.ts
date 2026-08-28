@@ -438,11 +438,12 @@ function renderPanoPreview(): void {
 function renderPanoFinal(): void {
   if (!currentVolume) return;
   if (curveEditorCtl.curve.points.length < 2) return;
-  if (gpuActive && gpuPano) {
-    gpuPano.setCurve(curveEditorCtl.curve);
-    return;
-  }
-  // CPU final: depth auto-detect를 user curve z ±10 슬라이스로 좁힘.
+  // NOTE: GPU CPR viewport는 arch-spline 기반 WebGL ray-cast로 결과를 그리지만
+  // CPU focal-trough IP와 시각적으로 다르고, 현재 상악동/신경관 같은 주변 구조가
+  // 약하게 잡힌다. preview와 main이 같은 결과가 되도록 CPU 경로를 강제한다.
+  // GPU 경로는 알고리즘이 CPU와 일치하도록 개선된 후 다시 활성화 예정.
+  void gpuPano; // suppress unused warning
+  // CPU final: depth auto-detect를 user curve z ±30 슬라이스(약 ±15mm)로.
   const userZ = userCurveZ(curveEditorCtl.curve);
   const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume, { searchCenterZ: userZ, halfRange: 30 });
   focalTrough.setDepthRangeVox(zMin, zMax);
