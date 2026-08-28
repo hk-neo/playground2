@@ -426,7 +426,7 @@ function renderPanoPreview(): void {
   // 큰 CBCT에서 한 z slice에서 그린 curve로 전체 z IP하면 다른 z의 arch가 섞여 ripple/찌그러짐
   // artifact가 생긴다. user curve의 z에 집중해 arch 정확도↑.
   const userZ = userCurveZ(curveEditorCtl.curve);
-  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume, { searchCenterZ: userZ, halfRange: 10 });
+  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume, { searchCenterZ: userZ, halfRange: 30 });
   focalTrough.setDepthRangeVox(zMin, zMax);
   // mm-based: 픽셀 수는 curve length/thickness와 spacing으로 자동 계산.
   const { data, curveWidth, inPlaneWidth } = focalTrough.extract(curveEditorCtl.curve, currentVolume);
@@ -444,7 +444,7 @@ function renderPanoFinal(): void {
   }
   // CPU final: depth auto-detect를 user curve z ±10 슬라이스로 좁힘.
   const userZ = userCurveZ(curveEditorCtl.curve);
-  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume, { searchCenterZ: userZ, halfRange: 10 });
+  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume, { searchCenterZ: userZ, halfRange: 30 });
   focalTrough.setDepthRangeVox(zMin, zMax);
   // mm-based: 픽셀 수는 curve length/thickness와 spacing으로 자동 계산.
   const { data, curveWidth, inPlaneWidth } = focalTrough.extract(curveEditorCtl.curve, currentVolume);
@@ -661,7 +661,7 @@ function renderModalPanoPreview(): void {
   }
   // CPU modal preview: depth auto-detect를 user curve z ±10 슬라이스로 좁힘 (캐시됨).
   const userZ = userCurveZ(curveEditorCtl.curve);
-  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume, { searchCenterZ: userZ, halfRange: 10 });
+  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume, { searchCenterZ: userZ, halfRange: 30 });
   focalTrough.setDepthRangeVox(zMin, zMax);
   // Drag 중에는 저해상도(mmPerPixel=1), 끝나면 풀해상도(0.5). Drag 종료 시
   // pointerup 핸들러가 isCurveDragging=false로 만들고 풀해상도로 즉시 갱신.

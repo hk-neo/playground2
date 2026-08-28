@@ -445,4 +445,44 @@ describe('FocalTrough', () => {
       expect(r.zMax - r.zMin).toBeLessThanOrEqual(16);
     });
   });
+
+function _bandVol(): VolumeData {
+  const dx = 4, dy = 4, dz = 30;
+  const buf = new ArrayBuffer(dx * dy * dz * 2);
+  const view = new Int16Array(buf);
+  view.fill(50);
+  for (let z = 8; z <= 12; z++) for (let y = 0; y < dy; y++) for (let x = 0; x < dx; x++) {
+    view[z * dx * dy + y * dx + x] = (x * 30 + z * 17) % 200;
+  }
+  for (let z = 20; z <= 24; z++) for (let y = 0; y < dy; y++) for (let x = 0; x < dx; x++) {
+    view[z * dx * dy + y * dx + x] = (x * 50 + z * 7) % 250;
+  }
+  return { buffer: buf, dimensions: [dx, dy, dz], spacing: [1, 1, 1], origin: [0, 0, 0], dataType: 'int16' };
+}
+
+describe('clinical depth window (±15mm)', () => {
+  it('halfRange=30 yields a range of exactly 60 slices (center±30)', () => {
+    // makeVolume은 10³이라 부족. 10×10×100으로 직접 생성.
+    const v: VolumeData = {
+      buffer: new ArrayBuffer(10 * 10 * 100 * 2),
+      dimensions: [10, 10, 100],
+      spacing: [1, 1, 1],
+      origin: [0, 0, 0],
+      dataType: 'int16',
+    };
+    const c = 50;
+    const r = trough.detectBestDepthRange(v, { searchCenterZ: c, halfRange: 30 });
+    expect(r.zMin).toBe(c - 30);
+    expect(r.zMax).toBe(c + 30);
+    expect(r.zMax - r.zMin).toBe(60);
+  });
+
+  it('halfRange=30 covers the dental arch + adjacent sinus/nerve canal zones', () => {
+    const v = _bandVol();
+    // center near arch (z=10), ±30 → z=[-20..40] clamped to [0..29] = [0..29]
+    const r = trough.detectBestDepthRange(v, { searchCenterZ: 10, halfRange: 30 });
+    expect(r.zMin).toBe(0);
+    expect(r.zMax).toBe(29); // clamped at dz-1
+  });
+});
 });
