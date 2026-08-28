@@ -1,11 +1,18 @@
+import { initPanoWiring, setPanoVolume, LAYOUT_RESIZED_EVENT } from './pano-wiring';
+
 import { DicomTagReader, PixelDataDecoder, TransferSyntaxRegistry, ParallelJpegDecoder } from '../dicom';
 import { SliceExtractor } from '../mpr/slice-extractor';
 import { WLWWApplier } from '../mpr/wlww-applier';
+import { applyWlwwToPano } from './pano-wiring';
+import { getCrosshairCanvasSize } from './crosshair-size';
 import { MPRPlane } from '../shared/types/rendering';
 import type { VolumeData } from '../shared/types/volume';
 import type { DecodingInfo, TransferSyntaxInfo } from '../shared/types/dicom';
 import type { DicomTags } from '../shared/types/patient';
 import type { Mat4 } from '../shared/types/core';
+import { computeBackbufferSize } from './backbuffer-size';
+import { getCrossSectionOverlayState } from './cross-section-state';
+import { getVolumeCameraTarget, getVolumeModelScale, resolveViewerCameraAction } from './viewer-input';
 import { uploadVolume3D } from '../webgl/texture';
 import { OrbitalCamera } from '../camera/orbital-camera';
 import { InputHandler } from '../input/input-handler';
@@ -112,18 +119,15 @@ inputHandler.on(InputType.MouseUp, () => {
 inputHandler.on(InputType.MouseMove, (input) => {
   if (!isDragging3d) return;
 
-  const btn = drag3dButton;
-  const shiftPan = input.modifiers?.shift && btn === 0;
+  const action = resolveViewerCameraAction(drag3dButton, input.modifiers?.shift ?? false);
 
-  if (btn === 0 && !shiftPan) {
-    // Left drag: rotate
+  if (action?.type === 'rotate') {
     camera.rotate(-input.delta.x * ROTATION_SENSITIVITY, input.delta.y * ROTATION_SENSITIVITY);
-  } else if (btn === 2 || shiftPan) {
-    // Right drag / Shift+Left: zoom (vertical movement)
+  } else if (action?.type === 'zoom') {
     camera.zoom(input.delta.y * ZOOM_SENSITIVITY);
-  } else if (btn === 1) {
-    // Middle drag: pan
-    camera.pan(-input.delta.x * PAN_SENSITIVITY, input.delta.y * PAN_SENSITIVITY);
+  } else if (action?.type === 'pan') {
+    // Right drag: pan. Camera follows the cursor, matching OrbitControls.
+    camera.pan(input.delta.x * PAN_SENSITIVITY, input.delta.y * PAN_SENSITIVITY);
   }
 
   render3D();
@@ -135,12 +139,17 @@ inputHandler.on(InputType.Wheel, (input) => {
 
 // Double-click: reset view
 canvas3d.addEventListener('dblclick', () => {
-  camera.reset();
-  camera.rotate(-0.6, 0.4);
+  resetViewerCamera();
   render3D();
 });
 
-inputHandler.registerShortcut('r', () => { camera.reset(); camera.rotate(-0.6, 0.4); render3D(); });
+function resetViewerCamera(): void {
+  camera.reset();
+  camera.setTarget(getVolumeCameraTarget());
+  camera.rotate(-0.6, 0.4);
+}
+
+inputHandler.registerShortcut('r', () => { resetViewerCamera(); render3D(); });
 
 loadBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', handleFiles);
@@ -150,6 +159,10 @@ sagittalSlider.addEventListener('input', () => { updateSliderVal('sagittal'); re
 wlSlider.addEventListener('input', () => { updateSliderVal('wl'); renderAll(); });
 wwSlider.addEventListener('input', () => { updateSliderVal('ww'); renderAll(); });
 tfSlider.addEventListener('input', () => { updateSliderVal('tf'); updateTF(); render3D(); });
+
+// pano-wiring의 resizeCanvases()는 canvas.width/height를 재할당해 비트맵을
+// 초기화한다. 슬라이더/휠 입력 없이도 슬라이스를 다시 그리도록 이벤트에 반응.
+window.addEventListener(LAYOUT_RESIZED_EVENT, () => { renderAll(); });
 
 // ===== Crosshair Overlay =====
 
@@ -189,12 +202,33 @@ function updateCrosshairs() {
   const cr = +coronalSlider.value;
   const sg = +sagittalSlider.value;
 
+  // 십자선 캔버스 내부 해상도를 슬라이스 차원과 동기화한다.
+  // .mpr 이미지와 같은 width/height를 가져야 픽셀 좌표가 화면상에서 일치한다.
+  syncCrosshairCanvasSize(axialCH, getCrosshairCanvasSize(MPRPlane.Axial, [dx, dy, dz]));
+  syncCrosshairCanvasSize(coronalCH, getCrosshairCanvasSize(MPRPlane.Coronal, [dx, dy, dz]));
+  syncCrosshairCanvasSize(sagittalCH, getCrosshairCanvasSize(MPRPlane.Sagittal, [dx, dy, dz]));
+
   // Axial: horizontal=sagittal, vertical=coronal
   drawCrosshair(axialCH, sg, dx, cr, dy);
   // Coronal: horizontal=sagittal, vertical=axial
   drawCrosshair(coronalCH, sg, dx, ax, dz);
   // Sagittal: horizontal=coronal, vertical=axial
   drawCrosshair(sagittalCH, cr, dy, ax, dz);
+}
+
+/**
+ * 십자선 캔버스 해상도를 슬라이스 차원에 맞춘다.
+ * 캔버스 width/height 할당은 비트맵을 초기화하므로 drawCrosshair의 clearRect와
+ * 같은 효과를 가진다 — 다만 매 호출마다 재할당하지 않도록 이미 일치하면 건너뛴다.
+ */
+function syncCrosshairCanvasSize(
+  canvas: HTMLCanvasElement,
+  size: { width: number; height: number },
+): void {
+  if (canvas.width !== size.width || canvas.height !== size.height) {
+    canvas.width = size.width;
+    canvas.height = size.height;
+  }
 }
 
 // ===== MPR Viewport Interactions =====
@@ -260,6 +294,9 @@ window.addEventListener('mousemove', (e: MouseEvent) => {
   updateSliderVal('ww');
   updateSliderVal('wl');
   renderAll();
+  // ★ Panorama도 같은 WL/WW로 (커브 에디터의 pano preview 포함)
+  applyWlwwToPano(newWL, newWW);
+  window.dispatchEvent(new CustomEvent('wlww-changed', { detail: { wl: newWL, ww: newWW } }));
 });
 
 window.addEventListener('mouseup', () => {
@@ -274,9 +311,31 @@ function updateSliderVal(which: string) {
   if (which === 'axial') document.getElementById('axial-val')!.textContent = axialSlider.value;
   if (which === 'coronal') document.getElementById('coronal-val')!.textContent = coronalSlider.value;
   if (which === 'sagittal') document.getElementById('sagittal-val')!.textContent = sagittalSlider.value;
-  if (which === 'wl') { document.getElementById('wl-val')!.textContent = wlSlider.value; wlww.setWindowLevel(+wlSlider.value); }
-  if (which === 'ww') { document.getElementById('ww-val')!.textContent = wwSlider.value; wlww.setWindowWidth(+wwSlider.value); }
+  if (which === 'wl') {
+    document.getElementById('wl-val')!.textContent = wlSlider.value;
+    wlww.setWindowLevel(+wlSlider.value);
+    // slice-renderer / curve-editor-modal은 wlww-changed 이벤트로 동기화된다.
+    // 슬라이더 경로에서도 동일하게 전파해야 모달 axial의 WL/WW가 main과 맞춰진다.
+    dispatchWlwwChanged();
+  }
+  if (which === 'ww') {
+    document.getElementById('ww-val')!.textContent = wwSlider.value;
+    wlww.setWindowWidth(+wwSlider.value);
+    dispatchWlwwChanged();
+  }
   if (which === 'tf') document.getElementById('tf-val')!.textContent = tfSlider.value;
+}
+
+/**
+ * 현재 WL/WW 슬라이더 값을 wlww-changed 이벤트로 broadcast한다.
+ * installWlwwSync() (slice-renderer)와 pano-wiring.ts의 wlww-changed 리스너가
+ * 이 이벤트로 동기화된다 — 마우스 드래그 경로에서도 dispatch하므로
+ * 슬라이더 경로에서도 동일하게 발행해야 일관성이 유지된다.
+ */
+function dispatchWlwwChanged(): void {
+  window.dispatchEvent(new CustomEvent('wlww-changed', {
+    detail: { wl: +wlSlider.value, ww: +wwSlider.value },
+  }));
 }
 
 async function handleFiles() {
@@ -289,6 +348,8 @@ async function handleFiles() {
   try {
     const { volumeData, firstTags } = await buildVolumeFromFiles(Array.from(files));
     volume = volumeData;
+    setPanoVolume(volumeData, wlww.windowLevel, wlww.windowWidth);
+    resetViewerCamera();
     const [dx, dy, dz] = volume.dimensions;
     statusEl.textContent = `볼륨 로드 완료: ${dx}×${dy}×${dz} (${files.length}슬라이스)`;
     if (firstTags) patientDataManager.loadFromDicom(firstTags);
@@ -552,7 +613,13 @@ uniform sampler3D uVolume;
 uniform sampler2D uTF;
 uniform vec2 uScreen;
 uniform vec3 uCameraModelPos;
+uniform vec3 uSlicePlanes;
+uniform vec2 uWindowWLWW;
 out vec4 fragColor;
+
+vec3 rayDirection = vec3(0.0);
+vec3 rayFront = vec3(0.0);
+float rayLength = 0.0;
 
 vec2 rayBoxIntersect(vec3 origin, vec3 dir) {
   vec3 boxMin = vec3(0.005);
@@ -567,19 +634,24 @@ vec2 rayBoxIntersect(vec3 origin, vec3 dir) {
   return vec2(tNear, tFar);
 }
 
+vec4 compositeCrossSection(vec4 accumulated, float coordinate, int axis);
+
 void main() {
   vec3 camPos = uCameraModelPos * 0.5 + 0.5;
-  vec3 rayDir = normalize(vPos - camPos);
+  rayDirection = normalize(vPos - camPos);
+  vec3 rayDir = rayDirection;
 
   vec2 hits = rayBoxIntersect(camPos, rayDir);
   if (hits.x > hits.y || hits.y < 0.0) { fragColor = vec4(0.0); return; }
 
   float tStart = max(hits.x, 0.0);
   vec3 front = camPos + rayDir * tStart;
+  rayFront = front;
   vec3 back = camPos + rayDir * hits.y;
 
   vec3 dir = back - front;
   float len = length(dir);
+  rayLength = len;
   if (len < 0.001) { fragColor = vec4(0.0); return; }
   dir = normalize(dir);
   vec4 acc = vec4(0.0);
@@ -595,8 +667,34 @@ void main() {
     if (acc.a > 0.95) break;
     p += dir * step;
   }
+  acc = compositeCrossSection(acc, uSlicePlanes.x, 0);
+  acc = compositeCrossSection(acc, uSlicePlanes.y, 1);
+  acc = compositeCrossSection(acc, uSlicePlanes.z, 2);
   fragColor = acc;
-}`;
+}
+
+vec4 sampleCrossSection(float coordinate, int axis) {
+  float direction = axis == 0 ? rayDirection.x : axis == 1 ? rayDirection.y : rayDirection.z;
+  float origin = axis == 0 ? rayFront.x : axis == 1 ? rayFront.y : rayFront.z;
+  if (abs(direction) < 1.0e-6) return vec4(0.0);
+  float t = (coordinate - origin) / direction;
+  if (t < 0.0 || t > rayLength) return vec4(0.0);
+  vec3 samplePosition = rayFront + rayDirection * t;
+  if (any(lessThan(samplePosition, vec3(0.0))) || any(greaterThan(samplePosition, vec3(1.0)))) return vec4(0.0);
+  float hu = texture(uVolume, samplePosition).r;
+  float lower = uWindowWLWW.x - uWindowWLWW.y * 0.5;
+  float display = clamp((hu - lower) / max(uWindowWLWW.y, 1.0), 0.0, 1.0);
+  return vec4(vec3(display), 0.38);
+}
+
+vec4 compositeCrossSection(vec4 accumulated, float coordinate, int axis) {
+  vec4 section = sampleCrossSection(coordinate, axis);
+  accumulated.rgb = mix(accumulated.rgb, section.rgb, section.a);
+  accumulated.a = max(accumulated.a, section.a);
+  return accumulated;
+}
+
+`;
 
 function init3DRenderer() {
   if (!volume) return;
@@ -677,22 +775,35 @@ function init3DRenderer() {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 
-function ensure3DSize(): { w: number; h: number } {
-  const dpr = window.devicePixelRatio || 1;
-  const w = Math.floor(canvas3d.clientWidth * dpr);
-  const h = Math.floor(canvas3d.clientHeight * dpr);
-  if (canvas3d.width !== w || canvas3d.height !== h) {
-    canvas3d.width = w;
-    canvas3d.height = h;
+function ensure3DSize(): { w: number; h: number } | null {
+  // 부모 요소(.region-top)의 clientWidth/clientHeight를 source로 쓴다.
+  // 캔버스 자체의 clientWidth를 쓰면 (CSS가 없을 때) clientWidth = canvas.width
+  // attribute 값이라, canvas.width = clientWidth * dpr 로 매 호출마다 폭이
+  // 2배씩 증가하는 더블링 루프에 빠진다. 부모의 clientWidth는 flex layout이
+  // 결정하는 안정적인 값이므로 source로 안전하다. 단, MAX_TEXTURE_SIZE를 넘는
+  // 큰 모니터에서는 cap으로 메모리 할당 한계를 보호한다 (computeBackbufferSize).
+  const parent = canvas3d.parentElement;
+  if (!parent) return null;
+  const size = computeBackbufferSize(
+    parent.clientWidth,
+    parent.clientHeight,
+    window.devicePixelRatio || 1,
+  );
+  if (!size) return null;
+  if (canvas3d.width !== size.w || canvas3d.height !== size.h) {
+    canvas3d.width = size.w;
+    canvas3d.height = size.h;
   }
-  return { w, h };
+  return size;
 }
 
 function render3D() {
-  if (!gl3d || !volumeTexture || !backFaceProgram || !rayMarchProgram) return;
+  if (!gl3d || !volume || !volumeTexture || !backFaceProgram || !rayMarchProgram) return;
   const gl = gl3d;
 
-  const { w, h } = ensure3DSize();
+  const size = ensure3DSize();
+  if (!size) return; // 캔버스가 아직 레이아웃되지 않음 (0×0 가드)
+  const { w, h } = size;
 
   // Resize back face texture if needed
   gl.bindTexture(gl.TEXTURE_2D, backTex);
@@ -744,6 +855,27 @@ function render3D() {
   gl.uniformMatrix4fv(gl.getUniformLocation(rayMarchProgram, 'uMVP'), false, mvp);
   gl.uniform2f(gl.getUniformLocation(rayMarchProgram, 'uScreen'), w, h);
   gl.uniform3f(gl.getUniformLocation(rayMarchProgram, 'uCameraModelPos'), camModelPos.x, camModelPos.y, camModelPos.z);
+  const crossSection = getCrossSectionOverlayState(
+    volume,
+    {
+      axial: +axialSlider.value,
+      coronal: +coronalSlider.value,
+      tangential: +sagittalSlider.value,
+    },
+    wlww.windowLevel,
+    wlww.windowWidth,
+  );
+  gl.uniform3f(
+    gl.getUniformLocation(rayMarchProgram, 'uSlicePlanes'),
+    crossSection.axial,
+    crossSection.coronal,
+    crossSection.tangential,
+  );
+  gl.uniform2f(
+    gl.getUniformLocation(rayMarchProgram, 'uWindowWLWW'),
+    crossSection.windowLevel,
+    crossSection.windowWidth,
+  );
 
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, backTex);
@@ -763,12 +895,11 @@ function render3D() {
 function computeMVP(): Mat4 {
   if (!volume) return new Float32Array(16);
 
-  const [dx, dy, dz] = volume.dimensions;
-  const maxDim = Math.max(dx, dy, dz);
+  const [modelScaleX, modelScaleY, modelScaleZ] = getVolumeModelScale(volume);
   const model = new Float32Array([
-    dx / maxDim, 0, 0, 0,
-    0, dy / maxDim, 0, 0,
-    0, 0, dz / maxDim, 0,
+    modelScaleX, 0, 0, 0,
+    0, modelScaleY, 0, 0,
+    0, 0, modelScaleZ, 0,
     0, 0, 0, 1,
   ]);
 
@@ -781,12 +912,11 @@ function computeMVP(): Mat4 {
 function computeCameraModelPos(): { x: number; y: number; z: number } {
   const pos = camera.getPosition();
   if (!volume) return { x: 0, y: 0, z: 0 };
-  const [dx, dy, dz] = volume.dimensions;
-  const maxDim = Math.max(dx, dy, dz);
+  const [modelScaleX, modelScaleY, modelScaleZ] = getVolumeModelScale(volume);
   return {
-    x: pos.x * maxDim / dx,
-    y: pos.y * maxDim / dy,
-    z: pos.z * maxDim / dz,
+    x: pos.x / modelScaleX,
+    y: pos.y / modelScaleY,
+    z: pos.z / modelScaleZ,
   };
 }
 
@@ -849,4 +979,11 @@ function updateTF() {
   gl3d.bindTexture(gl3d.TEXTURE_2D, tfTexture);
   gl3d.texImage2D(gl3d.TEXTURE_2D, 0, gl3d.RGBA, 256, 1, 0, gl3d.RGBA, gl3d.UNSIGNED_BYTE,
     createTransferFunctionData(+tfSlider.value));
+}
+
+// ── Pano wiring bootstrap ──
+try {
+  initPanoWiring();
+} catch (e) {
+  console.error('initPanoWiring failed', e);
 }
