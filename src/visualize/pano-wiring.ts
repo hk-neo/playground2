@@ -110,7 +110,7 @@ export function initPanoWiring(): void {
   curveEditorCtl = new CurveEditorController();
   curveEditorView = new CurveEditorView();
   // full CBCT z + full 머리 깊이, max mode (치아/뼈 강조)
-  focalTrough = new FocalTrough({ thickness: 200, mode: 'max' });
+  focalTrough = new FocalTrough({ thickness: 15, mode: 'max' });
   panoView = new PanoView();
 
   curveEditorCtl.onStateChange(() => syncCurveEditorState());
@@ -400,9 +400,11 @@ function renderPanoPreview(): void {
     gpuPano.setCurve(curveEditorCtl.curve);
     return;
   }
-  // CPU fallback: full z × arc length, voxel 단위 full CBCT z, in-plane 두께=200
-  const data = focalTrough.extract(curveEditorCtl.curve, currentVolume, 100);
-  panoView.setIntensityMap(data, data.length / 100, 100);
+  // CPU preview: depth auto-detect (full z 적분은 noise/artifact), 256 in-plane pixels.
+  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume);
+  focalTrough.setDepthRangeVox(zMin, zMax);
+  const data = focalTrough.extract(curveEditorCtl.curve, currentVolume, 256);
+  panoView.setIntensityMap(data, data.length / 256, 256);
   const ctx = panoCanvas.getContext('2d');
   if (ctx) panoView.render(panoCanvas);
 }
@@ -414,9 +416,11 @@ function renderPanoFinal(): void {
     gpuPano.setCurve(curveEditorCtl.curve);
     return;
   }
-  // CPU fallback: thickness=200, full z, in-plane=200 pixel
-  const data = focalTrough.extract(curveEditorCtl.curve, currentVolume, 200);
-  panoView.setIntensityMap(data, data.length / 200, 200);
+  // CPU final: depth auto-detect, 512 in-plane pixels (full 해상도 결과).
+  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume);
+  focalTrough.setDepthRangeVox(zMin, zMax);
+  const data = focalTrough.extract(curveEditorCtl.curve, currentVolume, 512);
+  panoView.setIntensityMap(data, data.length / 512, 512);
   const ctx = panoCanvas.getContext('2d');
   if (ctx) panoView.render(panoCanvas);
 }
@@ -442,6 +446,16 @@ function resizeCanvases(): void {
     curveEditorView.setCurve(curveEditorCtl.curve);
   }
   if (gpuActive && gpuPano) gpuPano.resize();
+
+  // Modal Pano canvas — modal이 열려있을 때만 부모(.modal-pano) 크기로 동기화.
+  // 닫혀있을 때는 이전 사이즈 유지 (열릴 때 깜빡임 방지). 기본 300×150은 너무 작아
+  // preview가 보이지 않으므로 명시적으로 잡는다.
+  if (curveEditorModal && !curveEditorModal.hidden && modalPanoCanvas) {
+    const mp = modalPanoCanvas.parentElement;
+    if (mp) {
+      setSize(modalPanoCanvas, Math.max(64, mp.clientWidth), Math.max(64, mp.clientHeight));
+    }
+  }
 
   // canvas.width/height 할당은 비트맵을 초기화하므로 슬라이스 이미지가 사라진다.
   // main.ts의 renderAll()이 다시 renderSlice를 호출하도록 알려준다.
@@ -546,6 +560,9 @@ function openCurveEditor(): void {
     curveEditorCtl.beginDrawing();
   }
   syncModalFromVolume();
+  // Modal이 열렸으니 modal-pano canvas 사이즈를 부모에 맞춰 잡는다 (resizeCanvases 내부에서
+  // !curveEditorModal.hidden 체크). 또한 GPU CPR의 viewport도 동기화.
+  resizeCanvases();
   // Re-render on WL/WW changes (modal preview stays in sync).
   if (!modalWlwwListenerBound) {
     modalWlwwListenerBound = true;
@@ -585,8 +602,12 @@ function renderModalPanoPreview(): void {
   if (curveEditorCtl.curve.points.length < 2) return;
   if (gpuActive && gpuPano) {
     gpuPano.setCurve(curveEditorCtl.curve);
+    return;
   }
-  const previewWidth = 160;
+  // CPU modal preview: depth auto-detect, 256 in-plane pixels.
+  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume);
+  focalTrough.setDepthRangeVox(zMin, zMax);
+  const previewWidth = 256;
   const data = focalTrough.extract(curveEditorCtl.curve, currentVolume, previewWidth);
   panePanoView.setIntensityMap(data, data.length / previewWidth, previewWidth);
   panoView.setIntensityMap(data, data.length / previewWidth, previewWidth);

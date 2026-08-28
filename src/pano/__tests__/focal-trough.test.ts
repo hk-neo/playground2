@@ -46,10 +46,11 @@ describe('FocalTrough', () => {
   });
 
   describe('configuration', () => {
-    it('starts with default thickness=200, mode=min', () => {
-      // thickness = in-plane(전후) 범위(mm). full 머리 깊이 ~200mm.
+    it('starts with default thickness=15, mode=min', () => {
+      // dental 표준 focal trough 두께 (5~15mm). full 머리 깊이 적분 시 noise가
+      // 심하므로 curve 중심에서 좁게만 적분하는 게 panoramic 품질의 핵심.
       const t = new FocalTrough();
-      expect(t.thickness).toBe(200);
+      expect(t.thickness).toBe(15);
       expect(t.mode).toBe('min');
     });
 

@@ -4,7 +4,9 @@ import type { TroughMode } from '../shared/types/rendering';
 import type { IPanoramicCurve, IFocalTrough } from '../shared/interfaces/pano';
 
 const DEFAULT_SAMPLE_COUNT = 256; // 곡선을 따라 균등 샘플링할 개수 (= panorama의 가로 픽셀 수)
-const DEFAULT_THICKNESS = 200.0; // 기본 focal trough in-plane 두께 (mm) — full 머리 깊이
+// 기본 focal trough in-plane 두께 (mm). 5~15mm 범위가 dental 표준 — full 머리 깊이
+// (~200mm) 적분은 noise/artifact를 만들므로 curve 중심에서 좁게만 적분한다.
+const DEFAULT_THICKNESS = 15.0;
 const MAX_RAY_SAMPLES = 128; // normal 방향 IP ray sample cap (성능/품질 균형)
 const EPSILON = 1e-9;
 

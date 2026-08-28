@@ -373,7 +373,10 @@
       height: auto;
       display: block;
       margin: auto;
-      image-rendering: pixelated;
+      /* image-rendering: auto → 안티에일리어싱. pixelated는 확대 시 거칠게 보여서
+         modal preview 품질을 떨어뜨림. 고해상도 비트맵 업로드 + linear smoothing으로
+         부드러운 preview를 보장한다. */
+      image-rendering: auto;
     }
     .modal-axial, .modal-pano {
       display: flex;

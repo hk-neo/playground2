@@ -1,8 +1,10 @@
 import type { IPanoView } from '../shared/interfaces/pano';
 import { PanoRenderer } from './pano-renderer';
 
-const DEFAULT_WL = 0;     // 공기/치아 중간
-const DEFAULT_WW = 600;   // soft tissue(-200)~bone(+200) 영역을 0~255로 매핑 (치아/뼈 잘 보임)
+// Dental bone window (치아/뼈 HU 0~3000 영역을 0~255로 매핑). CBCT 표준 bone window와
+// 동일한 중심/폭(WL=400, WW=1500)을 사용해 dental panoramic의 핵심 구조가 잘 보이게 한다.
+const DEFAULT_WL = 400;
+const DEFAULT_WW = 1500;
 const DEFAULT_ZOOM = 1;
 
 export class PanoView implements IPanoView {
