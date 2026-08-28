@@ -6,7 +6,7 @@ import { computeLayoutFlex } from '../app/layout-flex';
 import {
   PanoramicCurve, FocalTrough, CurveEditorController, CurveEditorView,
   PanoView, PanoRenderer, hitTestCanvasPoint,
-  GpuCprViewport, supportsGpuCpr,
+  GpuCprViewport, supportsGpuCpr, ArchPresser,
 } from '../pano';
 import { renderMprSlice, installWlwwSync, setSharedWlww } from '../pano/slice-renderer';
 import type { LayoutRegion, LayoutSnapshot } from '../shared/interfaces/layout';
@@ -27,6 +27,10 @@ export const LAYOUT_RESIZED_EVENT = 'cbct-layout-resized';
 let curveEditorCtl: CurveEditorController;
 let curveEditorView: CurveEditorView;
 let focalTrough: FocalTrough;
+// ArchPresser — developable surface 기반 panorama 알고리즘.
+// renderPanoFinal / renderModalPanoPreview가 메인 + 모달 preview 결과 일치를 위해 사용.
+// (renderPanoPreview 실시간 drag preview는 focalTrough CPU로 가볍게 유지 — 60fps 보존)
+let archPresser: ArchPresser;
 let panoView: PanoView;
 let panePanoView: PanoView;
 let gpuPano: GpuCprViewport | null = null;
@@ -111,6 +115,9 @@ export function initPanoWiring(): void {
   curveEditorView = new CurveEditorView();
   // full CBCT z + full 머리 깊이, max mode (치아/뼈 강조)
   focalTrough = new FocalTrough({ thickness: 15, mode: 'max' });
+  // ArchPresser: thickness=15mm (in-plane), pixelSize=0.3mm, mode='max'.
+  // depth range는 userZ 기반으로 setDepthRangeMm로 매번 갱신.
+  archPresser = new ArchPresser({ thickness: 15, pixelSize: 0.3, mode: 'max' });
   panoView = new PanoView();
 
   curveEditorCtl.onStateChange(() => syncCurveEditorState());
@@ -656,20 +663,18 @@ function renderModalPanoPreview(): void {
   if (curveEditorCtl.curve.points.length < 2) return;
   if (gpuActive && gpuPano) {
     gpuPano.setCurve(curveEditorCtl.curve);
-    // NOTE: GPU CPR viewport는 .region-bottom-left에 별도 WebGL canvas를 띄우지만,
-    // modal 안에는 GPU canvas가 없으므로 modal preview는 반드시 CPU로 그려야 한다.
-    // 따라서 여기서 return하지 않고 아래 CPU path를 계속 진행한다.
+    // NOTE: modal 안에는 GPU canvas가 없으므로 아래 CPU path도 항상 실행.
   }
-  // CPU modal preview: depth auto-detect를 user curve z ±10 슬라이스로 좁힘 (캐시됨).
+  // ArchPresser — 메인과 같은 developable surface panorama 알고리즘. 결과 일치.
+  // Drag 중에는 저해상도(pixelSize=0.6), 끝나면 풀해상도(0.3). pointerup에서 즉시 갱신.
   const userZ = userCurveZ(curveEditorCtl.curve);
-  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume, { searchCenterZ: userZ, halfRange: 30 });
-  focalTrough.setDepthRangeVox(zMin, zMax);
-  // Drag 중에는 저해상도(mmPerPixel=1), 끝나면 풀해상도(0.5). Drag 종료 시
-  // pointerup 핸들러가 isCurveDragging=false로 만들고 풀해상도로 즉시 갱신.
-  const mmPerPixel = isCurveDragging ? 1.0 : 0.5;
-  const { data, curveWidth, inPlaneWidth } = focalTrough.extract(curveEditorCtl.curve, currentVolume, { mmPerPixel });
-  panePanoView.setIntensityMap(data, curveWidth, inPlaneWidth);
-  panoView.setIntensityMap(data, curveWidth, inPlaneWidth);
+  const spacingZ = currentVolume.spacing[2] || 1;
+  const userZmm = userZ * spacingZ;
+  archPresser.setDepthRangeMm(userZmm - 15, userZmm + 15);
+  archPresser.setPixelSize(isCurveDragging ? 0.6 : 0.3);
+  const { data, width, height } = archPresser.extract(curveEditorCtl.curve, currentVolume);
+  panePanoView.setIntensityMap(data, width, height);
+  panoView.setIntensityMap(data, width, height);
   const ctx = modalPanoCanvas.getContext('2d');
   if (ctx) panePanoView.render(modalPanoCanvas);
   panoView.render(panoCanvas);
