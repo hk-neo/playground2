@@ -78,518 +78,732 @@
 
     .brand-icon svg { width: 18px; height: 18px; color: var(--bg-primary); }
 
-    .brand-title {
+    .brand-name {
       font-family: var(--font-display);
       font-weight: 700;
-      font-size: 17px;
-      letter-spacing: -0.02em;
+      font-size: 15px;
+      letter-spacing: 0.3px;
     }
 
     .brand-tag {
-      font-family: var(--font-mono);
       font-size: 10px;
-      font-weight: 500;
-      padding: 2px 7px;
-      border-radius: 3px;
-      background: var(--accent-glow);
-      color: var(--accent);
-      border: 1px solid rgba(0,229,195,.18);
-    }
-
-    .hdr-sep {
-      width: 1px; height: 26px;
-      background: var(--border);
-    }
-
-    #status {
-      font-family: var(--font-mono);
-      font-size: 12px;
       color: var(--text-secondary);
-      flex: 1;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-left: 4px;
     }
 
-    .btn-load {
+    .header-spacer { flex: 1; }
+
+    .btn {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      padding: 7px 18px;
-      background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-      color: var(--bg-primary);
-      border: none;
-      border-radius: var(--radius);
-      cursor: pointer;
+      gap: 6px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
       font-family: var(--font-body);
-      font-weight: 600;
-      font-size: 13px;
-      transition: box-shadow .2s, transform .15s;
-    }
-
-    .btn-load:hover {
-      box-shadow: 0 4px 24px rgba(0,229,195,.28);
-      transform: translateY(-1px);
-    }
-
-    .btn-load:active { transform: translateY(0); }
-    .btn-load svg { width: 15px; height: 15px; }
-
-    #file-input { display: none; }
-
-    /* ── Controls Panel ────────────────────────────── */
-    .controls-panel {
-      background: var(--bg-surface);
-      border-bottom: 1px solid var(--border);
-      padding: 10px 20px;
-      flex-shrink: 0;
-      display: none;
-    }
-
-    .controls-panel.open {
-      display: block;
-      animation: fadeSlide .25s ease both;
-    }
-
-    @keyframes fadeSlide {
-      from { opacity: 0; transform: translateY(-4px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .ctrl-row {
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .ctrl {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-
-    .ctrl label {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 500;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      user-select: none;
-    }
-
-    .ctrl input[type=range] {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 110px;
-      height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-      outline: none;
-      cursor: pointer;
-    }
-
-    .ctrl input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 13px; height: 13px;
-      background: var(--accent);
-      border-radius: 50%;
-      cursor: pointer;
-      transition: box-shadow .15s;
-    }
-
-    .ctrl input[type=range]::-webkit-slider-thumb:hover {
-      box-shadow: 0 0 0 5px var(--accent-glow);
-    }
-
-    .ctrl input[type=range]::-moz-range-thumb {
-      width: 13px; height: 13px;
-      background: var(--accent);
-      border-radius: 50%;
-      border: none;
-      cursor: pointer;
-    }
-
-    .ctrl input[type=range]::-moz-range-track {
-      height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-    }
-
-    .ctrl .val {
-      font-family: var(--font-mono);
       font-size: 12px;
       font-weight: 500;
-      color: var(--accent);
-      min-width: 34px;
-      text-align: right;
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.15s ease;
     }
 
-    .ctrl-sep {
-      width: 1px; height: 18px;
-      background: var(--border);
-    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.primary { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+    .btn.primary:hover { background: var(--accent-dim); }
+    .btn.ghost { background: transparent; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* ── Viewport Grid ─────────────────────────────── */
-    .vp-grid {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      gap: 1px;
-      background: var(--border);
-      min-height: 0;
-    }
+    .file-input-wrap { position: relative; }
+    .file-input-wrap input[type="file"] { display: none; }
 
-    .vp {
-      background: var(--bg-viewport);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .vp canvas {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      display: block;
-    }
-
-    .vp canvas.mpr { image-rendering: pixelated; }
-
-    /* Overlay labels */
-    .vp-tag {
-      position: absolute;
-      top: 0; left: 0;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 600;
-      padding: 5px 10px;
-      background: rgba(0,0,0,.6);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      color: var(--text-secondary);
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      pointer-events: none;
-      z-index: 2;
-      border-bottom-right-radius: var(--radius);
-    }
-
-    .vp-tag.is-3d { color: var(--accent); }
-
-    .vp:hover .vp-tag { color: var(--text-primary); }
-    .vp:hover .vp-tag.is-3d { background: rgba(0,229,195,.08); }
-
-    .vp-hint {
-      position: absolute;
-      bottom: 6px; right: 8px;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-muted);
-      pointer-events: none;
-      z-index: 2;
-      opacity: 0;
-      transition: opacity .2s;
-    }
-
-    .vp:hover .vp-hint { opacity: 1; }
-
-    /* In-viewport slice slider */
-    .vp-slice-bar {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
+    .header-ctrls {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 5px 10px;
-      background: rgba(0,0,0,.55);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      z-index: 3;
+      gap: 10px;
     }
 
-    .vp-slice-bar input[type=range] {
-      -webkit-appearance: none;
-      appearance: none;
-      flex: 1;
-      height: 3px;
-      background: rgba(255,255,255,.15);
-      border-radius: 2px;
-      outline: none;
-      cursor: pointer;
+    .header-ctrls .ctrl {
+      display: flex;
+      align-items: center;
+      gap: 5px;
     }
-
-    .vp-slice-bar input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 12px; height: 12px;
-      background: var(--accent);
-      border-radius: 50%;
-      cursor: pointer;
-    }
-
-    .vp-slice-bar input[type=range]::-moz-range-thumb {
-      width: 12px; height: 12px;
-      background: var(--accent);
-      border-radius: 50%;
-      border: none;
-      cursor: pointer;
-    }
-
-    .vp-slice-bar input[type=range]::-moz-range-track {
-      height: 3px;
-      background: rgba(255,255,255,.15);
-      border-radius: 2px;
-    }
-
-    .vp-slice-val {
+    .header-ctrls .ctrl label {
       font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--accent);
+      font-size: 9px;
+      color: var(--text-secondary);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .header-ctrls .ctrl input[type=range] {
+      width: 60px;
+      accent-color: var(--accent);
+    }
+    .header-ctrls .ctrl .val {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-primary);
       min-width: 28px;
       text-align: right;
     }
 
-    /* Subtle corner crosshair marks */
-    .vp::after {
-      content: '';
+    #status {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      max-width: 380px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Workspace ─────────────────────────────────── */
+    .workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      position: relative;
+      height: calc(100vh - 78px);
+      box-sizing: border-box;
+    }
+
+    .region {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      background: var(--bg-viewport);
+      overflow: hidden;
+    }
+
+    .vp-tag {
+      position: absolute;
+      top: 8px; left: 8px;
+      padding: 3px 8px;
+      background: rgba(13, 15, 19, 0.85);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .vp-tag.is-3d { color: var(--accent-warm); }
+    .vp-tag.is-pano { color: var(--accent); }
+
+    .vp-hint {
+      position: absolute;
+      bottom: 8px; left: 8px;
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .vp-slice-bar {
+      position: absolute;
+      bottom: 8px; right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 5;
+      background: rgba(13, 15, 19, 0.7);
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+
+    .vp-slice-bar input[type="range"] { width: 100px; }
+    .vp-slice-val {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-secondary);
+      min-width: 30px;
+      text-align: right;
+    }
+
+    /* ── Maximize button ──────────────────────────── */
+    .vp-max {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 24px; height: 24px;
+      background: rgba(13, 15, 19, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      z-index: 6;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+    }
+
+    .vp-max:hover { color: var(--accent); border-color: var(--accent); background: rgba(13, 15, 19, 0.9); }
+    .vp-max svg { width: 12px; height: 12px; }
+
+    /* ── Workspace regions ────────────────────────── */
+    .region-top { flex: 7 1 0; min-height: 100px; }
+    .region-bottom-row { flex: 3 1 0; display: flex; flex-direction: row; min-height: 100px; }
+    .region-bottom-left { flex: 0 1 50%; min-width: 200px; min-height: 0; }
+    .region-bottom-right { flex: 0 1 50%; min-width: 200px; min-height: 0; display: flex; flex-direction: column; }
+
+    #3d-canvas, #pano-canvas {
       position: absolute;
       inset: 0;
-      pointer-events: none;
-      z-index: 1;
-      background:
-        linear-gradient(var(--text-muted), var(--text-muted)) center / 1px 14px no-repeat,
-        linear-gradient(var(--text-muted), var(--text-muted)) center / 14px 1px no-repeat;
-      opacity: .15;
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #000;
     }
 
-    /* ── Loading Overlay ───────────────────────────── */
-    #loading {
-      position: fixed;
+    .mpr-strip { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr; flex: 1; min-height: 0; }
+    .mpr-cell { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg-viewport); border-left: 1px solid var(--border); border-top: 1px solid var(--border); }
+    .mpr-cell:first-child { border-left: 0; border-top: 0; }
+    /* MPR 슬라이스 이미지: 셀을 채우되 슬라이스 비율을 유지하고 중앙정렬한다.
+       intrinsic 크기(예: 512×512)가 셀보다 크면 종횡비 유지하며 축소, 작으면 확대.
+       이전엔 규칙이 없어 intrinsic 픽셀 그대로 그려져 셀이 작을 때 좌우가 잘렸다. */
+    .mpr {
+      position: absolute;
       inset: 0;
-      background: rgba(13,15,19,.88);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      display: none;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      gap: 18px;
-      z-index: 1000;
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    /* 십자선 오버레이: .mpr와 같은 셀 안에서 이미지 위에 겹쳐 그린다.
+       JS에서 캔버스 width/height를 슬라이스 차원과 동기화하므로, 같은 종횡비의
+       letterbox 영역 안에서 픽셀 좌표가 이미지와 정확히 일치한다.
+       pointer-events:none 으로 마우스 드래그/클릭이 밑의 슬라이스 캔버스로 가도록 한다. */
+    .crosshair-overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
     }
 
-    #loading.active { display: flex; }
+    /* ── Resize handles ───────────────────────────── */
+    .resize-h {
+      height: 4px;
+      background: var(--border);
+      cursor: ns-resize;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .resize-h:hover, .resize-h.dragging { background: var(--accent); }
 
+    .resize-v {
+      width: 4px;
+      background: var(--border);
+      cursor: ew-resize;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .resize-v:hover, .resize-v.dragging { background: var(--accent); }
+
+    /* ── Curve Editor Modal (fullscreen) ──────────── */
+    .curve-editor-modal {
+      position: fixed;
+      top: 50px;            /* 헤더 아래 */
+      left: 0; right: 0; bottom: 0;
+      background: var(--bg-primary);
+      display: flex;
+      flex-direction: column;
+      z-index: 1000;
+      overflow: hidden;
+    }
+    .curve-editor-modal[hidden] { display: none; }
+
+    .modal-header {
+      height: 48px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .modal-title {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .modal-header-spacer { flex: 1; }
+    .modal-presets { display: flex; gap: 6px; }
+    .modal-close { padding: 4px 10px; }
+
+    .modal-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      min-height: 0;
+    }
+
+    .modal-main {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+      min-height: 0;
+    }
+    .modal-axial, .modal-pano {
+      position: relative;
+      background: var(--bg-viewport);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      min-width: 0;
+      min-height: 0;
+    }
+    .modal-axial canvas, .modal-pano canvas {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      display: block;
+      margin: auto;
+      image-rendering: pixelated;
+    }
+    .modal-axial, .modal-pano {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-axial-controls {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(13, 15, 19, 0.85);
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      z-index: 5;
+    }
+    .modal-axial-controls label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-secondary);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .modal-axial-controls input[type=range] {
+      width: 280px;
+      accent-color: var(--accent);
+    }
+    .modal-axial .vp-tag, .modal-pano .vp-tag {
+      top: 10px; left: 10px;
+    }
+
+    .modal-sidebar {
+      background: var(--bg-surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-sidebar-section {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .modal-sidebar-section:nth-child(1) {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .modal-sidebar-actions {
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      border-top: 1px solid var(--border);
+    }
+    .modal-sidebar-actions .btn { width: 100%; justify-content: center; }
+    .modal-sidebar-actions .btn:nth-child(3) { grid-column: 1 / -1; }
+
+    .modal-hint {
+      padding: 10px 16px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      line-height: 1.7;
+    }
+    .trough-mode-row { display: flex; gap: 4px; }
+    .trough-mode-row .btn { flex: 1; padding: 4px 8px; font-size: 11px; }
+    .trough-mode-row .btn.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+
+    .curve-editor-header {
+      height: 40px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .curve-editor-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--accent);
+    }
+
+    .curve-editor-state {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-secondary);
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--bg-elevated);
+    }
+
+    .curve-editor-section {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .curve-editor-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .preset-row { display: flex; gap: 6px; }
+
+    .thickness-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .thickness-row input[type="range"] { flex: 1; }
+
+    .curve-editor-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 14px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .curve-point {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .curve-point-id { color: var(--accent); width: 18px; }
+    .curve-point-coord { color: var(--text-secondary); flex: 1; }
+    .curve-point-del { background: none; border: 0; color: var(--text-muted); cursor: pointer; padding: 0 4px; }
+    .curve-point-del:hover { color: var(--accent-warm); }
+
+    .curve-editor-actions {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .curve-editor-actions .btn { width: 100%; justify-content: center; }
+    .curve-editor-actions .btn.full { grid-column: 1 / -1; }
+    .curve-editor-actions .btn.primary { background: var(--accent); color: var(--bg-primary); }
+
+    /* ── Loading ───────────────────────────────────── */
+    #loading {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(13, 15, 19, 0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      z-index: 100;
+    }
+    #loading.show { display: flex; }
     .spinner {
       width: 36px; height: 36px;
-      border: 3px solid var(--border);
+      border: 2px solid var(--border);
       border-top-color: var(--accent);
       border-radius: 50%;
-      animation: spin .7s linear infinite;
+      animation: spin 0.8s linear infinite;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
-
     .loader-text {
-      font-family: var(--font-body);
-      font-size: 14px;
-      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+      letter-spacing: 0.5px;
     }
 
-    /* ── Status Bar ────────────────────────────────── */
+    /* ── Patient Panel ────────────────────────────── */
+    .patient-panel {
+      position: absolute;
+      top: 60px; right: 0;
+      width: 220px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 50;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+    .patient-panel.visible { display: flex; }
+    .pi-item { display: flex; gap: 8px; font-size: 11px; }
+    .pi-label { color: var(--text-muted); font-family: var(--font-mono); width: 50px; }
+    .pi-value { color: var(--text-primary); font-weight: 500; flex: 1; word-break: break-all; }
+
+    /* ── Status Bar ───────────────────────────────── */
     .status-bar {
       height: 28px;
       background: var(--bg-surface);
       border-top: 1px solid var(--border);
       display: flex;
       align-items: center;
-      padding: 0 16px;
-      gap: 14px;
+      padding: 0 14px;
+      gap: 18px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-secondary);
       flex-shrink: 0;
     }
 
-    .st-item {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
+    .st-item { display: flex; align-items: center; gap: 6px; }
     .st-dot {
       width: 6px; height: 6px;
       border-radius: 50%;
       background: var(--text-muted);
-      flex-shrink: 0;
     }
+    .st-dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+    .st-dot.error { background: var(--accent-warm); }
 
-    .st-dot.on {
-      background: var(--accent);
-      box-shadow: 0 0 6px var(--accent);
-    }
-
-    .st-keys {
-      margin-left: auto;
-      display: flex;
-      gap: 10px;
-    }
-
-    .st-keys kbd {
-      font-family: var(--font-mono);
-      font-size: 9px;
-      padding: 1px 5px;
+    .st-keys { margin-left: auto; display: flex; gap: 14px; }
+    .sk { display: flex; align-items: center; gap: 5px; }
+    kbd {
       background: var(--bg-elevated);
       border: 1px solid var(--border);
-      border-radius: 3px;
-      color: var(--text-secondary);
-    }
-
-    .st-keys span {
-      font-size: 10px;
-      color: var(--text-muted);
-      margin-left: 3px;
-    }
-
-    .st-keys .sk {
-      display: inline-flex;
-      align-items: center;
-    }
-
-    /* ── Patient Info Panel ────────────────────────── */
-    .patient-panel {
-      background: var(--bg-surface);
-      border-top: 1px solid var(--border);
-      padding: 4px 16px;
-      display: none;
-      align-items: center;
-      gap: 16px;
-      flex-shrink: 0;
-      height: 26px;
-    }
-
-    .patient-panel.visible { display: flex; }
-
-    .pi-item {
+      padding: 1px 5px;
+      border-radius: 2px;
       font-family: var(--font-mono);
-      font-size: 10px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .pi-label {
-      color: var(--text-muted);
       font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-    }
-
-    .pi-value {
       color: var(--text-primary);
-      font-weight: 500;
-    }
-
-    /* ── Crosshair Overlay ─────────────────────────── */
-    .crosshair-overlay {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 2;
     }
   </style>
 </head>
 <body>
-
   <!-- Header -->
   <header class="header">
     <div class="brand">
       <div class="brand-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="2" x2="12" y2="6"/>
-          <line x1="12" y1="18" x2="12" y2="22"/>
-          <line x1="2" y1="12" x2="6" y2="12"/>
-          <line x1="18" y1="12" x2="22" y2="12"/>
-          <circle cx="12" cy="12" r="3"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/>
         </svg>
       </div>
-      <span class="brand-title">CBCT Viewer</span>
-      <span class="brand-tag">v1.0</span>
+      <span class="brand-name">CBCT Viewer</span>
+      <span class="brand-tag">PANORAMIC</span>
     </div>
-    <div class="hdr-sep"></div>
-    <button class="btn-load" id="load-btn">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 12V4m0 0L5 7m3-3 3 3M2 14h12"/>
-      </svg>
-      DICOM 로드
-    </button>
-    <input type="file" id="file-input" multiple webkitdirectory>
-    <span id="status">DICOM 폴더를 선택하세요</span>
-  </header>
 
-  <!-- Controls (WL/WW + Threshold only) -->
-  <div id="controls-mpm" class="controls-panel">
-    <div class="ctrl-row">
+    <div class="header-spacer"></div>
+
+    <div class="file-input-wrap">
+      <button class="btn primary" onclick="document.getElementById('file-input').click()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        폴더 열기
+      </button>
+      <input type="file" id="file-input" multiple webkitdirectory>
+    </div>
+
+    <button class="btn" id="btn-pano-edit">Curve Editor</button>
+    <button class="btn" id="load-btn" style="display:none">Load</button>
+
+    <div class="header-ctrls">
       <div class="ctrl">
         <label>WL</label>
         <input type="range" id="wl-slider" min="-2000" max="4000" value="500">
         <span class="val" id="wl-val">500</span>
       </div>
-      <div class="ctrl-sep"></div>
       <div class="ctrl">
         <label>WW</label>
         <input type="range" id="ww-slider" min="1" max="8000" value="2500">
         <span class="val" id="ww-val">2500</span>
       </div>
-      <div class="ctrl-sep"></div>
       <div class="ctrl">
-        <label>Threshold</label>
+        <label>TF</label>
         <input type="range" id="tf-slider" min="0" max="100" value="15">
         <span class="val" id="tf-val">15</span>
       </div>
     </div>
+
+    <span id="status">DICOM 폴더를 선택하세요</span>
+  </header>
+
+  <!-- Workspace (3D top / Pano+MPR bottom) -->
+  <div class="workspace" id="workspace">
+
+    <!-- Top: 3D Volume -->
+    <div class="region region-top" id="region-top">
+      <canvas id="3d-canvas"></canvas>
+      <div class="vp-tag is-3d">3D Volume</div>
+      <span class="vp-hint">L-drag: rotate · R-drag: pan · Wheel: zoom · Dbl-click: reset</span>
+      <button class="vp-max" data-region="top" aria-label="Maximize">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Resize handle (horizontal) -->
+    <div class="resize-h" id="resize-h" aria-label="Resize vertical"></div>
+
+    <!-- Bottom row: Pano + MPR 3-plane -->
+    <div class="region-bottom-row">
+
+      <!-- Bottom-left: Panoramic -->
+      <div class="region region-bottom-left" id="region-bottom-left">
+        <canvas id="pano-canvas"></canvas>
+        <div class="vp-tag is-pano" id="pano-tag">Panoramic</div>
+        <span class="vp-hint">Pano 그리기 버튼으로 곡선 정의</span>
+        <button class="vp-max" data-region="bottom-left" aria-label="Maximize">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Resize handle (vertical) -->
+      <div class="resize-v" id="resize-v" aria-label="Resize horizontal"></div>
+
+      <!-- Bottom-right: MPR 3-plane -->
+      <div class="region region-bottom-right" id="region-bottom-right">
+        <div class="mpr-strip">
+          <div class="mpr-cell">
+            <canvas id="axial-canvas" class="mpr"></canvas>
+            <canvas id="axial-crosshair" class="crosshair-overlay"></canvas>
+            <div class="vp-tag">Axial</div>
+            <div class="vp-slice-bar">
+              <input type="range" id="axial-slider" min="0" max="1" value="0">
+              <span class="vp-slice-val" id="axial-val">0</span>
+            </div>
+          </div>
+          <div class="mpr-cell">
+            <canvas id="coronal-canvas" class="mpr"></canvas>
+            <canvas id="coronal-crosshair" class="crosshair-overlay"></canvas>
+            <div class="vp-tag">Coronal</div>
+            <div class="vp-slice-bar">
+              <input type="range" id="coronal-slider" min="0" max="1" value="0">
+              <span class="vp-slice-val" id="coronal-val">0</span>
+            </div>
+          </div>
+          <div class="mpr-cell">
+            <canvas id="sagittal-canvas" class="mpr"></canvas>
+            <canvas id="sagittal-crosshair" class="crosshair-overlay"></canvas>
+            <div class="vp-tag">Tangential</div>
+            <div class="vp-slice-bar">
+              <input type="range" id="sagittal-slider" min="0" max="1" value="0">
+              <span class="vp-slice-val" id="sagittal-val">0</span>
+            </div>
+          </div>
+        </div>
+        <button class="vp-max" data-region="bottom-right" aria-label="Maximize" style="top:8px;right:8px;position:absolute;z-index:6;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Curve Editor Modal (fullscreen) -->
+    <div class="curve-editor-modal" id="curve-editor-modal" hidden>
+      <div class="modal-header">
+        <span class="modal-title">Curve Editor</span>
+        <span class="curve-editor-state" id="ce-state">Idle</span>
+        <div class="modal-header-spacer"></div>
+        <div class="modal-presets">
+          <button class="btn" id="ce-preset-ellipse">Ellipse</button>
+          <button class="btn" id="ce-preset-arch">Arch</button>
+        </div>
+        <button class="btn primary" id="ce-apply">Apply ✓</button>
+        <button class="btn modal-close" id="ce-close" aria-label="Close">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-main">
+          <div class="modal-axial">
+            <canvas id="modal-axial-canvas"></canvas>
+            <div class="vp-tag">Axial — click to add / drag to move</div>
+            <div class="modal-axial-controls">
+              <label>Slice</label>
+              <input type="range" id="modal-axial-slider" min="0" max="0" value="0">
+              <span class="vp-slice-val" id="modal-axial-val">0 / 0</span>
+            </div>
+          </div>
+          <div class="modal-pano">
+            <canvas id="modal-pano-canvas"></canvas>
+            <div class="vp-tag is-pano">Pano Preview</div>
+          </div>
+        </div>
+        <aside class="modal-sidebar">
+          <div class="modal-sidebar-section">
+            <div class="curve-editor-label">Control Points (<span id="ce-point-count">0</span>)</div>
+            <div class="curve-editor-list" id="ce-point-list"></div>
+          </div>
+          <div class="modal-sidebar-section">
+            <div class="curve-editor-label">Trough Mode</div>
+            <div class="trough-mode-row">
+              <button class="btn" id="ce-mode-min" data-mode="min">min</button>
+              <button class="btn" id="ce-mode-max" data-mode="max">max</button>
+              <button class="btn" id="ce-mode-mean" data-mode="mean">mean</button>
+            </div>
+            <div class="modal-sidebar-hint" style="font-size:11px; color:#7ee0c8; margin-top:12px; line-height:1.5;">
+              적분 범위: CBCT 전체 (머리끝~턱끝).<br>
+              밝기/대비: 좌측 WL/WW 슬라이더 사용.
+            </div>
+          </div>
+          <div class="modal-sidebar-actions">
+            <button class="btn" id="ce-undo">↶ Undo</button>
+            <button class="btn" id="ce-redo">↷ Redo</button>
+            <button class="btn" id="ce-cancel">Cancel</button>
+          </div>
+          <div class="modal-hint">
+            <kbd>Esc</kbd> Close · <kbd>⌘Z</kbd> Undo · <kbd>⌘⇧Z</kbd> Redo · <kbd>Enter</kbd> Apply
+          </div>
+        </aside>
+      </div>
+
+      <!-- 기존 panel header (이제 unused, 제거됨) -->
+
+
+    </aside>
   </div>
 
-  <!-- Viewport Grid -->
-  <div class="vp-grid" id="viewport-container">
-    <div class="vp">
-      <canvas id="axial-canvas" width="512" height="512" class="mpr"></canvas>
-      <canvas id="axial-crosshair" class="crosshair-overlay" width="512" height="512"></canvas>
-      <div class="vp-tag">Axial</div>
-      <span class="vp-hint">Scroll: slice &middot; Drag: WL/WW</span>
-      <div class="vp-slice-bar">
-        <input type="range" id="axial-slider" min="0" max="1" value="0">
-        <span class="vp-slice-val" id="axial-val">0</span>
-      </div>
-    </div>
-    <div class="vp">
-      <canvas id="coronal-canvas" width="512" height="512" class="mpr"></canvas>
-      <canvas id="coronal-crosshair" class="crosshair-overlay" width="512" height="512"></canvas>
-      <div class="vp-tag">Coronal</div>
-      <span class="vp-hint">Scroll: slice &middot; Drag: WL/WW</span>
-      <div class="vp-slice-bar">
-        <input type="range" id="coronal-slider" min="0" max="1" value="0">
-        <span class="vp-slice-val" id="coronal-val">0</span>
-      </div>
-    </div>
-    <div class="vp">
-      <canvas id="sagittal-canvas" width="512" height="512" class="mpr"></canvas>
-      <canvas id="sagittal-crosshair" class="crosshair-overlay" width="512" height="512"></canvas>
-      <div class="vp-tag">Sagittal</div>
-      <span class="vp-hint">Scroll: slice &middot; Drag: WL/WW</span>
-      <div class="vp-slice-bar">
-        <input type="range" id="sagittal-slider" min="0" max="1" value="0">
-        <span class="vp-slice-val" id="sagittal-val">0</span>
-      </div>
-    </div>
-    <div class="vp">
-      <canvas id="3d-canvas" width="512" height="512"></canvas>
-      <div class="vp-tag is-3d">3D Volume</div>
-      <span class="vp-hint">L-drag: rotate &middot; R-drag: zoom &middot; Dbl-click: reset</span>
-    </div>
-  </div>
+  <!-- Controls (WL/WW + Threshold) -->
+  <div id="controls-mpm" class="controls-panel" style="display:none"></div>
 
   <!-- Loading -->
   <div id="loading">
