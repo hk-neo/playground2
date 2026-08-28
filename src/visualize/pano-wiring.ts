@@ -458,13 +458,24 @@ function resizeCanvases(): void {
   }
   if (gpuActive && gpuPano) gpuPano.resize();
 
-  // Modal Pano canvas — modal이 열려있을 때만 부모(.modal-pano) 크기로 동기화.
-  // 닫혀있을 때는 이전 사이즈 유지 (열릴 때 깜빡임 방지). 기본 300×150은 너무 작아
-  // preview가 보이지 않으므로 명시적으로 잡는다.
-  if (curveEditorModal && !curveEditorModal.hidden && modalPanoCanvas) {
-    const mp = modalPanoCanvas.parentElement;
-    if (mp) {
-      setSize(modalPanoCanvas, Math.max(64, mp.clientWidth), Math.max(64, mp.clientHeight));
+  // Modal canvases — modal이 열려있을 때만 사이즈 동기화.
+  // 닫혀있을 때는 이전 사이즈 유지 (열릴 때 깜빡임 방지).
+  if (curveEditorModal && !curveEditorModal.hidden) {
+    // Modal Axial canvas: CBCT의 axial 평면 크기(dx × dy)에 맞춰야 voxel 좌표가
+    // canvas 픽셀과 1:1로 일치한다. 기본 300×150이면 큰 CBCT에서 voxel (300+)가
+    // canvas 밖에 그려져 점이 안 보이는 버그 발생. CSS max-width로 container에 맞춰
+    // 표시되므로 canvas 내부 해상도는 dx × dy로 설정.
+    if (modalAxialCanvas && currentVolume) {
+      const [dx, dy] = currentVolume.dimensions;
+      setSize(modalAxialCanvas, dx, dy);
+    }
+    // Modal Pano canvas: 부모(.modal-pano) 크기로 동기화. 기본 300×150은 너무 작아
+    // preview가 보이지 않으므로 명시적으로 잡는다.
+    if (modalPanoCanvas) {
+      const mp = modalPanoCanvas.parentElement;
+      if (mp) {
+        setSize(modalPanoCanvas, Math.max(64, mp.clientWidth), Math.max(64, mp.clientHeight));
+      }
     }
   }
 
