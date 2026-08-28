@@ -118,7 +118,16 @@ export function initPanoWiring(): void {
     if (!curveEditorModal.hidden) {
       renderModalAxialSlice();
       curveEditorView.setCurve(curve);
-      if (curve.points.length >= 2) renderModalPanoPreview();
+      // renderModalPanoPreview는 무겁다(detectBestDepthRange + extract). Drag 중 pointermove가
+      // 100Hz로 발화되면 매번 extract → 누적 1초+. rAF로 throttle하여 다음 frame에서
+      // 한 번만 실행 (60fps 보장).
+      if (curve.points.length >= 2 && !panoPreviewQueued) {
+        panoPreviewQueued = true;
+        requestAnimationFrame(() => {
+          panoPreviewQueued = false;
+          renderModalPanoPreview();
+        });
+      }
     }
     syncCurveEditorState();
   });
@@ -403,8 +412,9 @@ function renderPanoPreview(): void {
   // CPU preview: depth auto-detect (full z 적분은 noise/artifact), 256 in-plane pixels.
   const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume);
   focalTrough.setDepthRangeVox(zMin, zMax);
-  const data = focalTrough.extract(curveEditorCtl.curve, currentVolume, 256);
-  panoView.setIntensityMap(data, data.length / 256, 256);
+  // mm-based: 픽셀 수는 curve length/thickness와 spacing으로 자동 계산.
+  const { data, curveWidth, inPlaneWidth } = focalTrough.extract(curveEditorCtl.curve, currentVolume);
+  panoView.setIntensityMap(data, curveWidth, inPlaneWidth);
   const ctx = panoCanvas.getContext('2d');
   if (ctx) panoView.render(panoCanvas);
 }
@@ -419,8 +429,9 @@ function renderPanoFinal(): void {
   // CPU final: depth auto-detect, 512 in-plane pixels (full 해상도 결과).
   const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume);
   focalTrough.setDepthRangeVox(zMin, zMax);
-  const data = focalTrough.extract(curveEditorCtl.curve, currentVolume, 512);
-  panoView.setIntensityMap(data, data.length / 512, 512);
+  // mm-based: 픽셀 수는 curve length/thickness와 spacing으로 자동 계산.
+  const { data, curveWidth, inPlaneWidth } = focalTrough.extract(curveEditorCtl.curve, currentVolume);
+  panoView.setIntensityMap(data, curveWidth, inPlaneWidth);
   const ctx = panoCanvas.getContext('2d');
   if (ctx) panoView.render(panoCanvas);
 }
@@ -468,6 +479,12 @@ export { PanoramicCurve };
 let modalAxialPointerBound = false;
 let modalAxialSliderBound = false;
 let modalWlwwListenerBound = false;
+
+// Curve drag 중 modal pano preview를 저해상도(mmPerPixel=1)로 그리고,
+// drag 끝나면 풀해상도(0.5)로 다시 그린다 — drag 중 60fps 유지 + 끝에 고품질 확정.
+let isCurveDragging = false;
+// rAF throttle: 연속된 onCurveChange 호출은 다음 frame에서 한 번만 renderModalPanoPreview 실행.
+let panoPreviewQueued = false;
 
 function renderModalAxialSlice(): void {
   if (!currentVolume) return;
@@ -526,7 +543,10 @@ function wireModalAxialDrag(): void {
     dragged = false;
     startX = event.clientX;
     startY = event.clientY;
-    if (dragIndex >= 0) modalAxialCanvas.setPointerCapture(event.pointerId);
+    if (dragIndex >= 0) {
+        isCurveDragging = true;
+        modalAxialCanvas.setPointerCapture(event.pointerId);
+      }
   });
 
   modalAxialCanvas.addEventListener('pointermove', (event) => {
@@ -542,6 +562,11 @@ function wireModalAxialDrag(): void {
   modalAxialCanvas.addEventListener('pointerup', () => {
     suppressNextModalClick = dragged || dragIndex >= 0;
     dragIndex = -1;
+    if (isCurveDragging) {
+      isCurveDragging = false;
+      // drag 끝 → 풀해상도 pano preview 즉시 갱신 (rAF queue가 이미 있으면 그게 처리).
+      if (curveEditorCtl.curve.points.length >= 2) renderModalPanoPreview();
+    }
     dragged = false;
   });
 
@@ -606,13 +631,15 @@ function renderModalPanoPreview(): void {
     // modal 안에는 GPU canvas가 없으므로 modal preview는 반드시 CPU로 그려야 한다.
     // 따라서 여기서 return하지 않고 아래 CPU path를 계속 진행한다.
   }
-  // CPU modal preview: depth auto-detect, 256 in-plane pixels.
+  // CPU modal preview: depth auto-detect (캐시됨 — 첫 호출 1회만 variance 계산).
   const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume);
   focalTrough.setDepthRangeVox(zMin, zMax);
-  const previewWidth = 256;
-  const data = focalTrough.extract(curveEditorCtl.curve, currentVolume, previewWidth);
-  panePanoView.setIntensityMap(data, data.length / previewWidth, previewWidth);
-  panoView.setIntensityMap(data, data.length / previewWidth, previewWidth);
+  // Drag 중에는 저해상도(mmPerPixel=1), 끝나면 풀해상도(0.5). Drag 종료 시
+  // pointerup 핸들러가 isCurveDragging=false로 만들고 풀해상도로 즉시 갱신.
+  const mmPerPixel = isCurveDragging ? 1.0 : 0.5;
+  const { data, curveWidth, inPlaneWidth } = focalTrough.extract(curveEditorCtl.curve, currentVolume, { mmPerPixel });
+  panePanoView.setIntensityMap(data, curveWidth, inPlaneWidth);
+  panoView.setIntensityMap(data, curveWidth, inPlaneWidth);
   const ctx = modalPanoCanvas.getContext('2d');
   if (ctx) panePanoView.render(modalPanoCanvas);
   panoView.render(panoCanvas);
@@ -645,10 +672,10 @@ function exposePanoDebug(): void {
       }
       return { ok: true, min: mn, max: mx, mean: sum / data.length };
     },
-    reExtract: (width = 200) => {
+    reExtract: (mmPerPixel = 0.5) => {
       if (!currentVolume) return { ok: false };
-      const data = focalTrough.extract(curveEditorCtl.curve, currentVolume, width);
-      panoView.setIntensityMap(data, data.length / width, width);
+      const { data, curveWidth, inPlaneWidth } = focalTrough.extract(curveEditorCtl.curve, currentVolume, { mmPerPixel });
+      panoView.setIntensityMap(data, curveWidth, inPlaneWidth);
       return { ok: true };
     },
     setMode: (m: 'min' | 'max' | 'mean') => { focalTrough.setMode(m); renderPanoFinal(); return m; },

@@ -58,7 +58,35 @@ export interface IFocalTrough {
    * @param width  in-plane(전후) 방향 샘플 개수 (= panorama의 세로 픽셀 수)
    * @returns Float32Array, 길이 = width * sampleCount
    */
-  extract(curve: IPanoramicCurve, volume: VolumeData, width: number): Float32Array;
+  extract(curve: IPanoramicCurve, volume: VolumeData, opts?: FocalTroughExtractOptions): FocalTroughExtractResult;
+}
+
+/**
+ * extract() 옵션.
+ *
+ * 기본 동작: mmPerPixel = volume.spacing[0]을 기준으로
+ *   inPlaneWidth  = ceil(thickness / mmPerPixel)
+ *   curveWidth    = ceil(curve.length() / mmPerPixel)
+ * 즉 출력 panorama는 정사각형 픽셀이 아니라
+ *   curve 따라 (= 가로, arch 길이) × in-plane (= 세로, thickness)
+ * 비정사각형 mm 비율이 정확히 보존됨.
+ */
+export interface FocalTroughExtractOptions {
+  /** 한 출력 픽셀이 커버하는 mm. 기본 = volume.spacing[0] */
+  mmPerPixel?: number;
+  /** curve 따라 픽셀 수 명시 override (mmPerPixel 계산 대신) */
+  curveSamples?: number;
+  /** in-plane 픽셀 수 명시 override */
+  inPlaneSamples?: number;
+}
+
+/** extract() 결과. data 레이아웃: out[inPlaneIdx * curveWidth + curveIdx] = (in-plane i, curve c). */
+export interface FocalTroughExtractResult {
+  data: Float32Array;
+  /** curve 따라 픽셀 수 (panorama 가로축, arch 길이 방향) */
+  curveWidth: number;
+  /** in-plane 픽셀 수 (panorama 세로축, thickness 방향) */
+  inPlaneWidth: number;
 }
 
 /** Curve Editor Controller: 상태머신 + undo/redo */

@@ -1,7 +1,7 @@
 import type { VolumeData } from '../shared/types/volume';
 import type { Vec3 } from '../shared/types/core';
 import type { TroughMode } from '../shared/types/rendering';
-import type { IPanoramicCurve, IFocalTrough } from '../shared/interfaces/pano';
+import type { IPanoramicCurve, IFocalTrough, FocalTroughExtractOptions, FocalTroughExtractResult } from '../shared/interfaces/pano';
 
 const DEFAULT_SAMPLE_COUNT = 256; // 곡선을 따라 균등 샘플링할 개수 (= panorama의 가로 픽셀 수)
 // 기본 focal trough in-plane 두께 (mm). 5~15mm 범위가 dental 표준 — full 머리 깊이
@@ -66,6 +66,9 @@ export class FocalTrough implements IFocalTrough {
   private _sampleCount: number;
   private _zMin: number;  // voxel
   private _zMax: number;  // voxel (Infinity = full)
+  // detectBestDepthRange 캐시: volume 객체 identity 기준으로 결과 보관.
+  // 같은 volume에 대해 여러 번 호출되어도 variance 계산은 한 번만.
+  private _cachedDepthRange: { volume: VolumeData; result: { zMin: number; zMax: number } } | null = null;
 
   constructor(opts: FocalTroughOptions = {}) {
     this._thickness = Math.max(0, opts.thickness ?? DEFAULT_THICKNESS);
@@ -102,6 +105,12 @@ export class FocalTrough implements IFocalTrough {
    * (구조가 가장 많은 = 공기가 가장 적은 = teeth/bone 있는 구간)
    */
   detectBestDepthRange(volume: VolumeData, windowSize = 40): { zMin: number; zMax: number } {
+    // 캐시 적중: 같은 volume 객체면 즉시 반환 (curve drag 중 매 프레임 호출되어도
+    // variance 계산은 첫 호출 1회만 — 매번 CBCT 전체 z 스캔하던 비용 제거).
+    const cached = this._cachedDepthRange;
+    if (cached && cached.volume === volume) {
+      return cached.result;
+    }
     const view = getVoxelView(volume);
     const dims = volume.dimensions;
     const [dx, dy, dz] = dims;
@@ -124,7 +133,9 @@ export class FocalTrough implements IFocalTrough {
       const variance = sumSq / count - mean * mean;
       if (variance > bestVar) { bestVar = variance; bestZ = z; }
     }
-    return { zMin: bestZ, zMax: Math.min(dz - 1, bestZ + windowSize) };
+    const result = { zMin: bestZ, zMax: Math.min(dz - 1, bestZ + windowSize) };
+    this._cachedDepthRange = { volume, result };
+    return result;
   }
 
   /**
@@ -148,17 +159,28 @@ export class FocalTrough implements IFocalTrough {
    * @returns Float32Array, 길이 = width * sampleCount, row-major
    *   row = in-plane sample (panorama의 세로), col = curve sample (panorama의 가로)
    */
-  extract(curve: IPanoramicCurve, volume: VolumeData, width: number): Float32Array {
+  extract(curve: IPanoramicCurve, volume: VolumeData, opts?: FocalTroughExtractOptions): FocalTroughExtractResult {
     if (curve.points.length < 2) {
       throw new InsufficientCurveError();
     }
-    if (width < 1) width = 1;
+    // mm-based pixel counts (정사각형 픽셀이 아니라 curve 길이(mm)와 thickness(mm에 비례).
+    // mmPerPixel 기본값 = volume.spacing[0] (CBCT 보통 0.3~0.5 mm).
+    const mmPerPixel = (opts?.mmPerPixel && opts.mmPerPixel > 0)
+      ? opts.mmPerPixel
+      : (volume.spacing[0] > 0 ? volume.spacing[0] : 0.5);
+    const curveWidth = (opts?.curveSamples && opts.curveSamples > 0)
+      ? Math.floor(opts.curveSamples)
+      : Math.max(8, Math.ceil(curve.length() / mmPerPixel));
+    const inPlaneWidth = (opts?.inPlaneSamples && opts.inPlaneSamples > 0)
+      ? Math.floor(opts.inPlaneSamples)
+      : Math.max(8, Math.ceil(this._thickness / mmPerPixel));
 
     const view = getVoxelView(volume);
     const dims = volume.dimensions;
     const spacing = volume.spacing;
-    const n = this._sampleCount;
-    const out = new Float32Array(width * n);
+    const n = curveWidth;
+    const width = inPlaneWidth;
+    const out = new Float32Array(inPlaneWidth * curveWidth);
 
     // 1) Curve samples + tangents
     const samples: Vec3[] = new Array(n);
@@ -264,6 +286,6 @@ export class FocalTrough implements IFocalTrough {
       }
     }
 
-    return out;
+    return { data: out, curveWidth, inPlaneWidth };
   }
 }

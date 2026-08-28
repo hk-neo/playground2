@@ -76,10 +76,10 @@ describe('FocalTrough', () => {
       const c = new PanoramicCurve();
       c.addPoint({ x: 1, y: 5, z: 5 });
       c.addPoint({ x: 8, y: 5, z: 5 });
-      const out = trough.extract(c, v, 5);
-      expect(out).toBeInstanceOf(Float32Array);
-      expect(out.length).toBeGreaterThanOrEqual(5);
-      expect(out.length % 5).toBe(0);
+      const out = trough.extract(c, v, { inPlaneSamples: 5 });
+      expect(out.data).toBeInstanceOf(Float32Array);
+      expect(out.data.length).toBeGreaterThanOrEqual(5);
+      expect(out.data.length % 5).toBe(0);
     });
 
     it('constant volume produces constant output (thickness=0, min mode)', () => {
@@ -87,9 +87,9 @@ describe('FocalTrough', () => {
       const c = new PanoramicCurve();
       c.addPoint({ x: 1, y: 5, z: 5 });
       c.addPoint({ x: 8, y: 5, z: 5 });
-      const out = trough.extract(c, v, 1);
-      for (let i = 0; i < out.length; i++) {
-        expect(out[i]).toBeCloseTo(123, 4);
+      const out = trough.extract(c, v, { inPlaneSamples: 1 });
+      for (let i = 0; i < out.data.length; i++) {
+        expect(out.data[i]).toBeCloseTo(123, 4);
       }
     });
 
@@ -99,11 +99,11 @@ describe('FocalTrough', () => {
       const c = new PanoramicCurve();
       c.addPoint({ x: 1, y: 5, z: 5 });
       c.addPoint({ x: 8, y: 5, z: 5 });
-      const out = trough.extract(c, v, 5);
+      const out = trough.extract(c, v, { inPlaneSamples: 5 });
       // 모든 값은 0..90 사이에 있어야 함
-      for (let i = 0; i < out.length; i++) {
-        expect(out[i]).toBeGreaterThanOrEqual(0);
-        expect(out[i]).toBeLessThanOrEqual(90);
+      for (let i = 0; i < out.data.length; i++) {
+        expect(out.data[i]).toBeGreaterThanOrEqual(0);
+        expect(out.data[i]).toBeLessThanOrEqual(90);
       }
     });
 
@@ -115,12 +115,12 @@ describe('FocalTrough', () => {
 
       const troughMin = new FocalTrough({ thickness: 2, mode: 'min' });
       const troughMax = new FocalTrough({ thickness: 2, mode: 'max' });
-      const outMin = troughMin.extract(c, v, 5);
-      const outMax = troughMax.extract(c, v, 5);
+      const outMin = troughMin.extract(c, v, { inPlaneSamples: 5 });
+      const outMax = troughMax.extract(c, v, { inPlaneSamples: 5 });
 
-      expect(outMin.length).toBe(outMax.length);
-      for (let i = 0; i < outMin.length; i++) {
-        expect(outMax[i]).toBeGreaterThanOrEqual(outMin[i] - 1e-3);
+      expect(outMin.data.length).toBe(outMax.data.length);
+      for (let i = 0; i < outMin.data.length; i++) {
+        expect(outMax.data[i]).toBeGreaterThanOrEqual(outMin.data[i] - 1e-3);
       }
     });
 
@@ -128,7 +128,7 @@ describe('FocalTrough', () => {
       const v = makeVolume();
       const c = new PanoramicCurve();
       c.addPoint({ x: 5, y: 5, z: 5 });
-      expect(() => trough.extract(c, v, 5)).toThrow();
+      expect(() => trough.extract(c, v, { inPlaneSamples: 5 })).toThrow();
     });
 
     // 회귀 방지: 데이터 레이아웃은 (thickness × curve) row-major.
@@ -149,20 +149,20 @@ describe('FocalTrough', () => {
       const t = new FocalTrough({ thickness: 0, mode: 'min', sampleCount: 8 });
       const W = 3;
       const N = 8;
-      const data = t.extract(c, v, W);
+      const data = t.extract(c, v, { inPlaneSamples: W, curveSamples: N });
 
-      expect(data.length).toBe(W * N);
+      expect(data.data.length).toBe(W * N);
 
       for (let cIdx = 0; cIdx < N; cIdx++) {
-        const base = data[cIdx];
+        const base = data.data[cIdx];
         for (let tIdx = 0; tIdx < W; tIdx++) {
-          expect(data[tIdx * N + cIdx]).toBe(base);
+          expect(data.data[tIdx * N + cIdx]).toBe(base);
         }
       }
 
       // curve가 움직였으므로 인접 col 값은 달라야 함 (옛 가로/세로 뒤바뀐 레이아웃이면 같아짐).
-      expect(data[0]).not.toBe(data[1]);
-      expect(data[1]).not.toBe(data[2]);
+      expect(data.data[0]).not.toBe(data.data[1]);
+      expect(data.data[1]).not.toBe(data.data[2]);
     });
 
     it('PanoView.setIntensityMap(data, sampleCount, width) places curve horizontal and thickness vertical', () => {
@@ -197,17 +197,17 @@ describe('FocalTrough', () => {
       const troughMean = new FocalTrough({ thickness: 5, mode: 'mean', sampleCount: 8 });
       const troughMax = new FocalTrough({ thickness: 5, mode: 'max', sampleCount: 8 });
 
-      const outMin = troughMin.extract(c, v, W);
-      const outMean = troughMean.extract(c, v, W);
-      const outMax = troughMax.extract(c, v, W);
+      const outMin = troughMin.extract(c, v, { inPlaneSamples: W, curveSamples: 8 });
+      const outMean = troughMean.extract(c, v, { inPlaneSamples: W, curveSamples: 8 });
+      const outMax = troughMax.extract(c, v, { inPlaneSamples: W, curveSamples: 8 });
 
-      expect(outMin.length).toBe(outMean.length);
-      expect(outMean.length).toBe(outMax.length);
+      expect(outMin.data.length).toBe(outMean.data.length);
+      expect(outMean.data.length).toBe(outMax.data.length);
 
       // min ≤ mean ≤ max (모든 픽셀)
-      for (let i = 0; i < outMin.length; i++) {
-        expect(outMin[i]).toBeLessThanOrEqual(outMean[i] + 1e-3);
-        expect(outMean[i]).toBeLessThanOrEqual(outMax[i] + 1e-3);
+      for (let i = 0; i < outMin.data.length; i++) {
+        expect(outMin.data[i]).toBeLessThanOrEqual(outMean.data[i] + 1e-3);
+        expect(outMean.data[i]).toBeLessThanOrEqual(outMax.data[i] + 1e-3);
       }
     });
 
@@ -218,14 +218,119 @@ describe('FocalTrough', () => {
       c.addPoint({ x: 1, y: 5, z: 5 });
       c.addPoint({ x: 8, y: 5, z: 5 });
 
-      const trough = new FocalTrough({ thickness: 5, mode: 'min', sampleCount: 8 });
-      const data = trough.extract(c, v, 3);
+      const trough = new FocalTrough({ thickness: 5, mode: 'min' });
+      const data = trough.extract(c, v, { inPlaneSamples: 3, curveSamples: 8 });
       // 같은 in-plane row에서 curve 방향(가로)으로 값이 변해야 함
       for (let row = 0; row < 3; row++) {
-        const first = data[row * 8];
-        const last = data[row * 8 + 7];
+        const first = data.data[row * 8];
+        const last = data.data[row * 8 + 7];
         expect(first).not.toBe(last);
       }
+    });
+  });
+
+  // mm-based extract: 픽셀 수가 curve length(mm)와 thickness(mm)에 비례.
+  // 결과는 비정사각형이며, mm/pixel이 같으면 mm 비율이 정확히 보존됨.
+  describe('extract (mm-based, non-square panorama)', () => {
+    it('returns { data, curveWidth, inPlaneWidth } (object, not raw Float32Array)', () => {
+      const v = makeVolume(100);
+      const c = new PanoramicCurve();
+      c.addPoint({ x: 1, y: 5, z: 5 });
+      c.addPoint({ x: 8, y: 5, z: 5 });
+      const out = trough.extract(c, v);
+      expect(out).toBeTypeOf('object');
+      expect(out.data).toBeInstanceOf(Float32Array);
+      expect(typeof out.curveWidth).toBe('number');
+      expect(typeof out.inPlaneWidth).toBe('number');
+    });
+
+    it('curveWidth grows with curve length when using default mmPerPixel', () => {
+      const v = makeVolume(100);
+      trough.setThickness(0); // thickness=0 → in-plane samples should be clamped
+
+      const cShort = new PanoramicCurve();
+      cShort.addPoint({ x: 1, y: 5, z: 5 });
+      cShort.addPoint({ x: 2, y: 5, z: 5 });
+      const rShort = trough.extract(cShort, v);
+
+      const cLong = new PanoramicCurve();
+      cLong.addPoint({ x: 1, y: 5, z: 5 });
+      cLong.addPoint({ x: 50, y: 5, z: 5 });
+      const rLong = trough.extract(cLong, v);
+
+      expect(rLong.curveWidth).toBeGreaterThan(rShort.curveWidth);
+    });
+
+    it('inPlaneWidth grows with thickness (in mm)', () => {
+      const v = makeVolume(100);
+      const c = new PanoramicCurve();
+      c.addPoint({ x: 1, y: 5, z: 5 });
+      c.addPoint({ x: 8, y: 5, z: 5 });
+
+      trough.setThickness(4);
+      const r4 = trough.extract(c, v);
+      trough.setThickness(20);
+      const r20 = trough.extract(c, v);
+      expect(r20.inPlaneWidth).toBeGreaterThan(r4.inPlaneWidth);
+    });
+
+    it('mmPerPixel halves both dims when halved (more detail)', () => {
+      // cap(>=8)에 걸리지 않을 만큼 큰 curve/thickness 사용.
+      const v = makeVolume(100);
+      const c = new PanoramicCurve();
+      c.addPoint({ x: 1, y: 5, z: 5 });
+      c.addPoint({ x: 100, y: 5, z: 5 }); // 99mm
+      trough.setThickness(20); // 20mm
+
+      const r1 = trough.extract(c, v, { mmPerPixel: 1 });
+      const r2 = trough.extract(c, v, { mmPerPixel: 0.5 });
+      // 절반 mm/pixel = 두 배 픽셀 (정확히 2배: cap 없으면 ceil(N/0.5) = 2*ceil(N))
+      expect(r2.curveWidth).toBeGreaterThanOrEqual(r1.curveWidth * 1.95);
+      expect(r2.inPlaneWidth).toBeGreaterThanOrEqual(r1.inPlaneWidth * 1.95);
+    });
+
+    it('data length equals curveWidth * inPlaneWidth', () => {
+      const v = makeVolume(100);
+      const c = new PanoramicCurve();
+      c.addPoint({ x: 1, y: 5, z: 5 });
+      c.addPoint({ x: 8, y: 5, z: 5 });
+      trough.setThickness(5);
+      const r = trough.extract(c, v);
+      expect(r.data.length).toBe(r.curveWidth * r.inPlaneWidth);
+    });
+
+    it('curveSamples / inPlaneSamples override mm-based counts', () => {
+      const v = makeVolume(100);
+      const c = new PanoramicCurve();
+      c.addPoint({ x: 1, y: 5, z: 5 });
+      c.addPoint({ x: 8, y: 5, z: 5 });
+      trough.setThickness(5);
+      const r = trough.extract(c, v, { curveSamples: 50, inPlaneSamples: 20 });
+      expect(r.curveWidth).toBe(50);
+      expect(r.inPlaneWidth).toBe(20);
+      expect(r.data.length).toBe(1000);
+    });
+  });
+
+  // detectBestDepthRange 캐싱 — volume 안 바뀌면 두 번째 호출은 캐시 적중.
+  // 캐시는 volume identity(===) 기준.
+  describe('detectBestDepthRange cache', () => {
+    it('returns the same object reference on cache hit (no recomputation)', () => {
+      const v = makeVolume(100);
+      const r1 = trough.detectBestDepthRange(v);
+      const r2 = trough.detectBestDepthRange(v);
+      // 캐시 적중이면 동일 객체 참조 반환 (성능: variance 재계산 안 함)
+      expect(r2).toBe(r1);
+    });
+
+    it('invalidates cache when a different volume is passed', () => {
+      const v1 = makeVolume(100);
+      const v2 = makeVolume(200);
+      const r1 = trough.detectBestDepthRange(v1);
+      const r2 = trough.detectBestDepthRange(v2);
+      // 다른 volume → 캐시 미스 → 새 객체
+      expect(r2).not.toBe(r1);
+      expect(r2.zMax).toBeGreaterThanOrEqual(r2.zMin);
     });
   });
 });
