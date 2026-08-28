@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { FocalTrough } from '../focal-trough';
+import { FocalTrough, getVoxelTrilinear } from '../focal-trough';
 import { PanoramicCurve } from '../panoramic-curve';
 import { PanoView } from '../pano-view';
 import type { VolumeData } from '../../shared/types/volume';
@@ -331,6 +331,59 @@ describe('FocalTrough', () => {
       // 다른 volume → 캐시 미스 → 새 객체
       expect(r2).not.toBe(r1);
       expect(r2.zMax).toBeGreaterThanOrEqual(r2.zMin);
+    });
+  });
+
+  // Trilinear interpolation: fractional 좌표에서 8개 corner voxel 가중 평균.
+  // Nearest-neighbor와 달리 voxel 경계에서 부드러운 전이가 핵심 (계단현상 제거).
+  describe('trilinear voxel sampling', () => {
+    function makeCubeVolume(corners: readonly number[]): VolumeData {
+      // 8 corners: corners[cx][cy][cz], cx,cy,cz ∈ {0,1}
+      const buf = new ArrayBuffer(2 * 2 * 2 * 2); // int16
+      const view = new Int16Array(buf);
+      for (let z = 0; z < 2; z++) for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) {
+        view[z * 4 + y * 2 + x] = corners[z * 4 + y * 2 + x];
+      }
+      return { buffer: buf, dimensions: [2, 2, 2], spacing: [1, 1, 1], origin: [0, 0, 0], dataType: 'int16' };
+    }
+
+    it('integer coords: trilinear == exact voxel value (constant volume)', () => {
+      const v = makeVolume(123);
+      // import getVoxelTrilinear inline via module.
+      const out = getVoxelTrilinear(v, 5, 5, 5);
+      expect(out).toBeCloseTo(123, 4);
+    });
+
+    it('half-integer fractional coords: weighted average of 8 corners', () => {
+      // corners: each face has value 0 except face x=1 has 100.
+      // 8 corners encode a step at x=0.5. At x=0.5,y=0.5,z=0.5: 4 corners on x=0 + 4 on x=1
+      //   → average = (0+0+0+0 + 100+100+100+100) / 8 = 50
+      const c = [0, 100, 0, 100, 0, 100, 0, 100] as const; // (x,y,z) c[z*4+y*2+x]
+      const v = makeCubeVolume(c);
+      const out = getVoxelTrilinear(v, 0.5, 0.5, 0.5);
+      expect(out).toBeCloseTo(50, 4);
+    });
+
+    it('midpoint on a single axis: linear blend between two slices', () => {
+      // corners: c[z=0]=0, c[z=1]=200 → at (0.5, 0, 0.5) → blend of z=0 and z=1 with x=0,y=0
+      //   → corners (0,0,0)=0, (0,0,1)=200. fx=0.5, fy=0.5, fz=0.5
+      //   → (1-0.5)(1-0.5)(1-0.5)*0 + (0.5)(0.5)(0.5)*0 + ... — we want a clean axis-only test:
+      //   use (0,0,0.5): only z varies. x=0,y=0: 2 corners on z=0..1
+      //   → 0.5*0 + 0.5*200 = 100
+      const c = [0, 0, 0, 0, 200, 200, 200, 200] as const;
+      const v = makeCubeVolume(c);
+      const out = getVoxelTrilinear(v, 0, 0, 0.5);
+      expect(out).toBeCloseTo(100, 4);
+    });
+
+    it('clamps to volume boundary when coord is out of range', () => {
+      const v = makeVolume(77);
+      // coord < 0 → clamp to 0
+      const lo = getVoxelTrilinear(v, -1, -1, -1);
+      expect(lo).toBe(77);
+      // coord > max → clamp to max
+      const hi = getVoxelTrilinear(v, 100, 100, 100);
+      expect(hi).toBe(77);
     });
   });
 });

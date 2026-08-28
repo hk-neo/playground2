@@ -41,6 +41,72 @@ function getVoxelView(volume: VolumeData): Int16Array | Uint16Array {
     : new Uint16Array(volume.buffer);
 }
 
+/**
+ * Trilinear voxel sampling: fractional 좌표 (x, y, z)에서 8개 corner voxel을
+ * 가중 평균으로 보간한다. volume 경계 밖은 가장 가까운 voxel로 clamp한다.
+ *
+ * Nearest-neighbor sampling (`Math.round` + `view[idx]`)은 voxel 경계에서
+ * 계단현상(staircase artifact)을 만든다 — panorama에서 치아/뼈가 깨져 보이거나
+ * voxel 경계에서 위치가 어긋나는 주요 원인. Trilinear은 인접 8 voxel을
+ * (1-fx)(1-fy)(1-fz), (fx)(1-fy)(1-fz), ... 가중치로 보간해 부드러운 전이를 보장.
+ *
+ * @param volume 3D 볼륨 데이터
+ * @param x voxel 좌표 (fractional 허용)
+ * @param y voxel 좌표 (fractional 허용)
+ * @param z voxel 좌표 (fractional 허용)
+ */
+export function getVoxelTrilinear(
+  volume: VolumeData,
+  x: number,
+  y: number,
+  z: number,
+): number {
+  const view = getVoxelView(volume);
+  const [dx, dy, dz] = volume.dimensions;
+  const dxy = dx * dy;
+
+  // Clamp to valid voxel range.
+  const cx = Math.max(0, Math.min(dx - 1, x));
+  const cy = Math.max(0, Math.min(dy - 1, y));
+  const cz = Math.max(0, Math.min(dz - 1, z));
+
+  // Integer floor + fractional offset.
+  const x0 = Math.floor(cx);
+  const y0 = Math.floor(cy);
+  const z0 = Math.floor(cz);
+  const x1 = Math.min(x0 + 1, dx - 1);
+  const y1 = Math.min(y0 + 1, dy - 1);
+  const z1 = Math.min(z0 + 1, dz - 1);
+  const fx = cx - x0;
+  const fy = cy - y0;
+  const fz = cz - z0;
+
+  // 8 corner reads.
+  const c000 = view[z0 * dxy + y0 * dx + x0];
+  const c100 = view[z0 * dxy + y0 * dx + x1];
+  const c010 = view[z0 * dxy + y1 * dx + x0];
+  const c110 = view[z0 * dxy + y1 * dx + x1];
+  const c001 = view[z1 * dxy + y0 * dx + x0];
+  const c101 = view[z1 * dxy + y0 * dx + x1];
+  const c011 = view[z1 * dxy + y1 * dx + x0];
+  const c111 = view[z1 * dxy + y1 * dx + x1];
+
+  // 8-corner trilinear blend.
+  const w000 = (1 - fx) * (1 - fy) * (1 - fz);
+  const w100 = fx * (1 - fy) * (1 - fz);
+  const w010 = (1 - fx) * fy * (1 - fz);
+  const w110 = fx * fy * (1 - fz);
+  const w001 = (1 - fx) * (1 - fy) * fz;
+  const w101 = fx * (1 - fy) * fz;
+  const w011 = (1 - fx) * fy * fz;
+  const w111 = fx * fy * fz;
+
+  return (
+    c000 * w000 + c100 * w100 + c010 * w010 + c110 * w110 +
+    c001 * w001 + c101 * w101 + c011 * w011 + c111 * w111
+  );
+}
+
 /** 두 직교 단위벡터의 정규화된 cross. degenerate면 zero */
 function crossNormalized(a: Vec3, b: Vec3): Vec3 {
   const cx = a.y * b.z - a.z * b.y;
@@ -253,20 +319,22 @@ export class FocalTrough implements IFocalTrough {
           let sum = 0;
           for (let s = 0; s < numRaySamples; s++) {
             const off = s * rayStride;
-            let x = Math.round(ox + pnx * off); if (x < 0) x = 0; else if (x > dxMax) x = dxMax;
-            let y = Math.round(oy + pny * off); if (y < 0) y = 0; else if (y > dyMax) y = dyMax;
-            let z = Math.round(oz + pnz * off); if (z < 0) z = 0; else if (z > dzMax) z = dzMax;
-            sum += view[z * dxy + y * dx + x];
+            // Trilinear sampling — fractional 좌표 그대로 사용. 경계는 함수 내부에서 clamp.
+            const x = ox + pnx * off;
+            const y = oy + pny * off;
+            const z = oz + pnz * off;
+            sum += getVoxelTrilinear(volume, x, y, z);
           }
           acc = sum / numRaySamples;
         } else if (isMax) {
           acc = -Infinity;
           for (let s = 0; s < numRaySamples; s++) {
             const off = s * rayStride;
-            let x = Math.round(ox + pnx * off); if (x < 0) x = 0; else if (x > dxMax) x = dxMax;
-            let y = Math.round(oy + pny * off); if (y < 0) y = 0; else if (y > dyMax) y = dyMax;
-            let z = Math.round(oz + pnz * off); if (z < 0) z = 0; else if (z > dzMax) z = dzMax;
-            const v = view[z * dxy + y * dx + x];
+            // Trilinear sampling — fractional 좌표 그대로 사용. 경계는 함수 내부에서 clamp.
+            const x = ox + pnx * off;
+            const y = oy + pny * off;
+            const z = oz + pnz * off;
+            const v = getVoxelTrilinear(volume, x, y, z);
             if (v > acc) acc = v;
           }
         } else {
@@ -274,10 +342,11 @@ export class FocalTrough implements IFocalTrough {
           acc = Infinity;
           for (let s = 0; s < numRaySamples; s++) {
             const off = s * rayStride;
-            let x = Math.round(ox + pnx * off); if (x < 0) x = 0; else if (x > dxMax) x = dxMax;
-            let y = Math.round(oy + pny * off); if (y < 0) y = 0; else if (y > dyMax) y = dyMax;
-            let z = Math.round(oz + pnz * off); if (z < 0) z = 0; else if (z > dzMax) z = dzMax;
-            const v = view[z * dxy + y * dx + x];
+            // Trilinear sampling — fractional 좌표 그대로 사용. 경계는 함수 내부에서 clamp.
+            const x = ox + pnx * off;
+            const y = oy + pny * off;
+            const z = oz + pnz * off;
+            const v = getVoxelTrilinear(volume, x, y, z);
             if (v < acc) acc = v;
           }
         }
