@@ -117,7 +117,9 @@ export function initPanoWiring(): void {
   focalTrough = new FocalTrough({ thickness: 15, mode: 'max' });
   // ArchPresser: thickness=15mm (in-plane), pixelSize=0.3mm, mode='max'.
   // depth range는 userZ 기반으로 setDepthRangeMm로 매번 갱신.
-  archPresser = new ArchPresser({ thickness: 15, pixelSize: 0.3, mode: 'max' });
+  // mode='mean' — 'max'는 단일 bone voxel(3000+ HU)에 saturate해서 panorama가 모두
+  // 255(흰색)로 칠해진 user report. mean은 ray 평균이라 다양한 강도가 살아남는다.
+  archPresser = new ArchPresser({ thickness: 15, pixelSize: 0.3, mode: 'mean' });
   panoView = new PanoView();
 
   curveEditorCtl.onStateChange(() => syncCurveEditorState());
@@ -445,18 +447,19 @@ function renderPanoPreview(): void {
 function renderPanoFinal(): void {
   if (!currentVolume) return;
   if (curveEditorCtl.curve.points.length < 2) return;
-  // NOTE: GPU CPR viewport는 arch-spline 기반 WebGL ray-cast로 결과를 그리지만
-  // CPU focal-trough IP와 시각적으로 다르고, 현재 상악동/신경관 같은 주변 구조가
-  // 약하게 잡힌다. preview와 main이 같은 결과가 되도록 CPU 경로를 강제한다.
-  // GPU 경로는 알고리즘이 CPU와 일치하도록 개선된 후 다시 활성화 예정.
   void gpuPano; // suppress unused warning
-  // CPU final: depth auto-detect를 user curve z ±30 슬라이스(약 ±15mm)로.
+  // ArchPresser — developable surface panorama. modal preview와 동일한 알고리즘
+  // + 동일 옵션으로 결과 일치 보장. depth range는 user curve z ±15mm로 상악동 + 신경관 포함.
   const userZ = userCurveZ(curveEditorCtl.curve);
-  const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume, { searchCenterZ: userZ, halfRange: 30 });
-  focalTrough.setDepthRangeVox(zMin, zMax);
-  // mm-based: 픽셀 수는 curve length/thickness와 spacing으로 자동 계산.
-  const { data, curveWidth, inPlaneWidth } = focalTrough.extract(curveEditorCtl.curve, currentVolume);
-  panoView.setIntensityMap(data, curveWidth, inPlaneWidth);
+  const spacingZ = currentVolume.spacing[2] || 1;
+  const volumeDepthMm = currentVolume.dimensions[2] * spacingZ;
+  const userZmm = userZ * spacingZ;
+  archPresser.setDepthRangeMm(
+    Math.max(0, userZmm - 15),
+    Math.min(volumeDepthMm, userZmm + 15),
+  );
+  const { data, width, height } = archPresser.extract(curveEditorCtl.curve, currentVolume);
+  panoView.setIntensityMap(data, width, height);
   const ctx = panoCanvas.getContext('2d');
   if (ctx) panoView.render(panoCanvas);
 }
@@ -669,8 +672,12 @@ function renderModalPanoPreview(): void {
   // Drag 중에는 저해상도(pixelSize=0.6), 끝나면 풀해상도(0.3). pointerup에서 즉시 갱신.
   const userZ = userCurveZ(curveEditorCtl.curve);
   const spacingZ = currentVolume.spacing[2] || 1;
+  const volumeDepthMm = currentVolume.dimensions[2] * spacingZ;
   const userZmm = userZ * spacingZ;
-  archPresser.setDepthRangeMm(userZmm - 15, userZmm + 15);
+  archPresser.setDepthRangeMm(
+    Math.max(0, userZmm - 15),
+    Math.min(volumeDepthMm, userZmm + 15),
+  );
   archPresser.setPixelSize(isCurveDragging ? 0.6 : 0.3);
   const { data, width, height } = archPresser.extract(curveEditorCtl.curve, currentVolume);
   panePanoView.setIntensityMap(data, width, height);
