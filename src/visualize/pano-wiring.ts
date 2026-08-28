@@ -325,12 +325,14 @@ function setupCurveEditor(): void {
   // 키보드 단축키
   document.addEventListener('keydown', onCurveEditorKeydown);
 
-  // 모달 Axial slice 슬라이더
+  // 모달 Axial slice 슬라이더 — setActiveSlice는 listener를 emit하지 않으므로
+  // 슬라이더 변경 시 명시적으로 modal axial view를 다시 그린다 (실시간 갱신).
   modalAxialSlider.addEventListener('input', () => {
     if (!currentVolume) return;
     const v = +modalAxialSlider.value;
     curveEditorCtl.setActiveSlice(MPRPlane.Axial, v);
     modalAxialSliderVal.textContent = modalAxialSlider.value;
+    renderModalAxialSlice();
   });
 }
 
