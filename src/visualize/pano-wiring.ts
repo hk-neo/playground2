@@ -602,7 +602,9 @@ function renderModalPanoPreview(): void {
   if (curveEditorCtl.curve.points.length < 2) return;
   if (gpuActive && gpuPano) {
     gpuPano.setCurve(curveEditorCtl.curve);
-    return;
+    // NOTE: GPU CPR viewport는 .region-bottom-left에 별도 WebGL canvas를 띄우지만,
+    // modal 안에는 GPU canvas가 없으므로 modal preview는 반드시 CPU로 그려야 한다.
+    // 따라서 여기서 return하지 않고 아래 CPU path를 계속 진행한다.
   }
   // CPU modal preview: depth auto-detect, 256 in-plane pixels.
   const { zMin, zMax } = focalTrough.detectBestDepthRange(currentVolume);
