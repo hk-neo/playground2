@@ -6,8 +6,9 @@ import { DicomFileLoader } from '../file-loader';
 import { TransferSyntaxResolver } from '../transfer-syntax-resolver';
 import { PixelDataDecoder } from '../pixel-data-decoder';
 
-const DICOM_DIR = join(process.env.HOME!, 'Projects', '정성진ct');
-const SAMPLE_FILE = join(DICOM_DIR, '10001.dcm');
+// DICOM 샘플 경로: 환경변수 DICOM_SAMPLE_DIR 우선, 없으면 기존 기본 경로
+const SAMPLE_FILE = process.env.DICOM_SAMPLE_FILE
+  || join(process.env.HOME!, 'Projects', '정성진ct', '10001.dcm');
 
 describe('DICOM Integration (real file)', () => {
   it('should parse a real DICOM file end-to-end', () => {
