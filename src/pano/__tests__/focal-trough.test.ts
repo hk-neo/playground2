@@ -386,4 +386,63 @@ describe('FocalTrough', () => {
       expect(hi).toBe(77);
     });
   });
+
+  // detectBestDepthRange 옵션 — searchCenterZ + halfRange로 z range 좁힘.
+  // 큰 CBCT에서 한 z slice에서 curve를 그리면 다른 z의 arch가 IP에 섞여 ripple/찌그러짐
+  // artifact를 만든다. user z 근처 ±halfRange 슬라이스만 검출하도록 제한.
+  describe('detectBestDepthRange options', () => {
+    // 2x2x30 volume: z=8~12에 teeth (variance 큼), z=20~24에 다른 구조
+    function makeTwoBandVolume(): VolumeData {
+      const dx = 4, dy = 4, dz = 30;
+      const buf = new ArrayBuffer(dx * dy * dz * 2);
+      const view = new Int16Array(buf);
+      view.fill(50); // base
+      // band 1: z=8..12, x,y 부분에 high variance
+      for (let z = 8; z <= 12; z++) for (let y = 0; y < dy; y++) for (let x = 0; x < dx; x++) {
+        view[z * dx * dy + y * dx + x] = (x * 30 + z * 17) % 200;
+      }
+      // band 2: z=20..24
+      for (let z = 20; z <= 24; z++) for (let y = 0; y < dy; y++) for (let x = 0; x < dx; x++) {
+        view[z * dx * dy + y * dx + x] = (x * 50 + z * 7) % 250;
+      }
+      return { buffer: buf, dimensions: [dx, dy, dz], spacing: [1, 1, 1], origin: [0, 0, 0], dataType: 'int16' };
+    }
+
+    it('without searchCenterZ: full scan picks the higher-variance band', () => {
+      const v = makeTwoBandVolume();
+      const r = trough.detectBestDepthRange(v);
+      // 두 band 모두 variance 있을 텐데, 더 높은 쪽 (보통 band 2) 선택
+      expect(r.zMax - r.zMin).toBeGreaterThan(0);
+    });
+
+    it('searchCenterZ near band 1 returns a range near band 1', () => {
+      const v = makeTwoBandVolume();
+      const r = trough.detectBestDepthRange(v, { searchCenterZ: 10, halfRange: 4 });
+      // 결과가 band 1 근처에 있어야 함 (z=8..12 근처)
+      expect(r.zMin).toBeGreaterThanOrEqual(6);
+      expect(r.zMax).toBeLessThanOrEqual(14);
+    });
+
+    it('searchCenterZ near band 2 returns a range near band 2', () => {
+      const v = makeTwoBandVolume();
+      const r = trough.detectBestDepthRange(v, { searchCenterZ: 22, halfRange: 4 });
+      // 결과가 band 2 근처 (z=18..26)
+      expect(r.zMin).toBeGreaterThanOrEqual(18);
+      expect(r.zMax).toBeLessThanOrEqual(26);
+    });
+
+    it('halfRange clamps result within [center-halfRange, center+halfRange]', () => {
+      const v = makeTwoBandVolume();
+      const r = trough.detectBestDepthRange(v, { searchCenterZ: 22, halfRange: 6 });
+      expect(r.zMin).toBeGreaterThanOrEqual(16);
+      expect(r.zMax).toBeLessThanOrEqual(28);
+      expect(r.zMax - r.zMin).toBeLessThanOrEqual(12);
+    });
+
+    it('default windowSize is 16 (8mm at 0.5mm/voxel)', () => {
+      const v = makeTwoBandVolume();
+      const r = trough.detectBestDepthRange(v, { searchCenterZ: 10 });
+      expect(r.zMax - r.zMin).toBeLessThanOrEqual(16);
+    });
+  });
 });

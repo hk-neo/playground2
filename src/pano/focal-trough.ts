@@ -132,9 +132,9 @@ export class FocalTrough implements IFocalTrough {
   private _sampleCount: number;
   private _zMin: number;  // voxel
   private _zMax: number;  // voxel (Infinity = full)
-  // detectBestDepthRange 캐시: volume 객체 identity 기준으로 결과 보관.
-  // 같은 volume에 대해 여러 번 호출되어도 variance 계산은 한 번만.
-  private _cachedDepthRange: { volume: VolumeData; result: { zMin: number; zMax: number } } | null = null;
+  // detectBestDepthRange 캐시: (volume identity, opts string) 키로 보관.
+  // 같은 (volume, opts) 조합이면 variance 계산 1회만.
+  private _cachedDepthRange: { volume: VolumeData; optsKey: string; result: { zMin: number; zMax: number } } | null = null;
 
   constructor(opts: FocalTroughOptions = {}) {
     this._thickness = Math.max(0, opts.thickness ?? DEFAULT_THICKNESS);
@@ -170,22 +170,44 @@ export class FocalTrough implements IFocalTrough {
    * 볼륨의 각 z 슬라이스에 대해 (x,y) 위치들의 variance가 가장 높은 z 구간을 반환.
    * (구조가 가장 많은 = 공기가 가장 적은 = teeth/bone 있는 구간)
    */
-  detectBestDepthRange(volume: VolumeData, windowSize = 40): { zMin: number; zMax: number } {
-    // 캐시 적중: 같은 volume 객체면 즉시 반환 (curve drag 중 매 프레임 호출되어도
-    // variance 계산은 첫 호출 1회만 — 매번 CBCT 전체 z 스캔하던 비용 제거).
+  detectBestDepthRange(
+    volume: VolumeData,
+    opts: { windowSize?: number; searchCenterZ?: number; halfRange?: number } = {},
+  ): { zMin: number; zMax: number } {
+    // 캐시 적중: 같은 (volume, opts)이면 즉시 반환 (curve drag 중 매 프레임 호출되어도
+    // variance 계산은 첫 호출 1회만).
+    const windowSize = opts.windowSize ?? 16;
+    const halfRange = opts.halfRange ?? Math.floor(windowSize / 2);
+    const optsKey = `${windowSize}|${opts.searchCenterZ ?? ''}|${halfRange}`;
     const cached = this._cachedDepthRange;
-    if (cached && cached.volume === volume) {
+    if (cached && cached.volume === volume && cached.optsKey === optsKey) {
       return cached.result;
     }
+
     const view = getVoxelView(volume);
     const dims = volume.dimensions;
     const [dx, dy, dz] = dims;
     const dxy = dx * dy;
     const strideXY = 6;
     const strideZ = 4;
+
+    // 검색 z 범위 결정. searchCenterZ가 있으면 그 주변 ±halfRange 안에서만 검출.
+    // 큰 CBCT에서 한 z slice에서 그린 curve로 전체 z를 IP하면 다른 z의 arch가 섞여
+    // ripple/찌그러짐 artifact를 만든다. user z 근처 좁은 범위로 제한해 arch 정확도↑.
+    let zStart: number;
+    let zEndExclusive: number;
+    if (opts.searchCenterZ !== undefined) {
+      const center = Math.max(0, Math.min(dz - 1, Math.floor(opts.searchCenterZ)));
+      zStart = Math.max(0, center - halfRange);
+      zEndExclusive = Math.min(dz - windowSize + 1, center + halfRange + 1);
+    } else {
+      zStart = 0;
+      zEndExclusive = Math.max(1, dz - windowSize + 1);
+    }
+
     let bestVar = -Infinity;
-    let bestZ = 0;
-    for (let z = 0; z + windowSize < dz; z += strideZ) {
+    let bestZ = zStart;
+    for (let z = zStart; z < zEndExclusive; z += strideZ) {
       let sum = 0, sumSq = 0, count = 0;
       for (let zz = z; zz < z + windowSize; zz += strideZ) {
         for (let y = 0; y < dy; y += strideXY) {
@@ -199,8 +221,20 @@ export class FocalTrough implements IFocalTrough {
       const variance = sumSq / count - mean * mean;
       if (variance > bestVar) { bestVar = variance; bestZ = z; }
     }
-    const result = { zMin: bestZ, zMax: Math.min(dz - 1, bestZ + windowSize) };
-    this._cachedDepthRange = { volume, result };
+
+    // 결과 z range: searchCenterZ가 있으면 ±halfRange로 정확히 clamp,
+    // 없으면 [bestZ, bestZ + windowSize] (전체 scan의 기본 동작).
+    let result: { zMin: number; zMax: number };
+    if (opts.searchCenterZ !== undefined) {
+      const center = Math.max(0, Math.min(dz - 1, Math.floor(opts.searchCenterZ)));
+      result = {
+        zMin: Math.max(0, center - halfRange),
+        zMax: Math.min(dz - 1, center + halfRange),
+      };
+    } else {
+      result = { zMin: bestZ, zMax: Math.min(dz - 1, bestZ + windowSize) };
+    }
+    this._cachedDepthRange = { volume, optsKey, result };
     return result;
   }
 
