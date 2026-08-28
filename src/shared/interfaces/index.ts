@@ -10,3 +10,5 @@ export * from './patient';
 export * from './sync';
 export * from './security';
 export * from './app';
+export * from './pano';
+export * from './layout';
