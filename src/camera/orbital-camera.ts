@@ -6,6 +6,9 @@ import { MatrixComposer } from './matrix-composer';
 const DEFAULT_MIN_DISTANCE = 0.1;
 const DEFAULT_MAX_DISTANCE = 100;
 const DEFAULT_FOV = Math.PI / 4;
+// box [-1,1]³을 fov π/4, aspect ~1.33 화면에 fit시키기 위한 기본 거리.
+// (2.5는 box가 화면보다 크게 그려져 잘림 → "한쪽 치우침" 회귀)
+const DEFAULT_DISTANCE = 3.5;
 
 export class OrbitalCamera implements ICamera {
   target: Vec3;
@@ -19,7 +22,7 @@ export class OrbitalCamera implements ICamera {
 
   constructor() {
     this.target = { x: 0, y: 0, z: 0 };
-    this.distance = 2.5;
+    this.distance = DEFAULT_DISTANCE;
     this.quaternion = QuaternionOps.identity();
     this.minDistance = DEFAULT_MIN_DISTANCE;
     this.maxDistance = DEFAULT_MAX_DISTANCE;
@@ -60,7 +63,7 @@ export class OrbitalCamera implements ICamera {
 
   reset(): void {
     this.target = { x: 0, y: 0, z: 0 };
-    this.distance = 2.5;
+    this.distance = DEFAULT_DISTANCE;
     this.quaternion = QuaternionOps.identity();
     this.fov = DEFAULT_FOV;
   }

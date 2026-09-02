@@ -109,11 +109,12 @@ function sampleBilinearYZ(
   const z0 = Math.floor(zt), z1 = z0 + 1;
   if (xt < 0 || xt >= dx || y0 < 0 || y1 >= dy || z0 < 0 || z1 >= dz) return 0;
   const wy = yt - y0, wz = zt - z0;
+  const cwy = 1 - wy, cwz = 1 - wz;
   const dxy = dx * dy;
-  let res = view[z0 * dxy + y0 * dx + xt] * (z1 - zt) * (y1 - wy);
-  if (z1 < dz) res += view[z1 * dxy + y0 * dx + xt] * (zt - z0) * (y1 - wy);
-  if (y1 < dy) res += view[z0 * dxy + y1 * dx + xt] * (z1 - zt) * (wy - y0);
-  if (z1 < dz && y1 < dy) res += view[z1 * dxy + y1 * dx + xt] * (zt - z0) * (wy - y0);
+  let res = view[z0 * dxy + y0 * dx + xt] * cwz * cwy;
+  if (z1 < dz) res += view[z1 * dxy + y0 * dx + xt] * wz * cwy;
+  if (y1 < dy) res += view[z0 * dxy + y1 * dx + xt] * cwz * wy;
+  if (z1 < dz && y1 < dy) res += view[z1 * dxy + y1 * dx + xt] * wz * wy;
   return res;
 }
 function sampleBilinearXZ(
@@ -125,11 +126,12 @@ function sampleBilinearXZ(
   const z0 = Math.floor(zt), z1 = z0 + 1;
   if (x0 < 0 || x0 >= dx || yt < 0 || yt >= dy || z0 < 0 || z0 >= dz) return 0;
   const wx = xt - x0, wz = zt - z0;
+  const cwx = 1 - wx, cwz = 1 - wz;
   const dxy = dx * dy;
-  let res = view[z0 * dxy + yt * dx + x0] * (z1 - zt) * (x1 - wx);
-  if (z1 < dz) res += view[z1 * dxy + yt * dx + x0] * (zt - z0) * (x1 - wx);
-  if (x1 < dx) res += view[z0 * dxy + yt * dx + x1] * (z1 - zt) * (wx - x0);
-  if (z1 < dz && x1 < dx) res += view[z1 * dxy + yt * dx + x1] * (zt - z0) * (wx - x0);
+  let res = view[z0 * dxy + yt * dx + x0] * cwz * cwx;
+  if (z1 < dz) res += view[z1 * dxy + yt * dx + x0] * wz * cwx;
+  if (x1 < dx) res += view[z0 * dxy + yt * dx + x1] * cwz * wx;
+  if (z1 < dz && x1 < dx) res += view[z1 * dxy + yt * dx + x1] * wz * wx;
   return res;
 }
 function sampleBilinearXY(
@@ -141,11 +143,12 @@ function sampleBilinearXY(
   const y0 = Math.floor(yt), y1 = y0 + 1;
   if (x0 < 0 || x0 >= dx || y0 < 0 || y0 >= dy || zt < 0 || zt >= dz) return 0;
   const wx = xt - x0, wy = yt - y0;
+  const cwx = 1 - wx, cwy = 1 - wy;
   const dxy = dx * dy;
-  let res = view[zt * dxy + y0 * dx + x0] * (y1 - wy) * (x1 - wx);
-  if (y1 < dy) res += view[zt * dxy + y1 * dx + x0] * (wy - y0) * (x1 - wx);
-  if (x1 < dx) res += view[zt * dxy + y0 * dx + x1] * (y1 - wy) * (wx - x0);
-  if (y1 < dy && x1 < dx) res += view[zt * dxy + y1 * dx + x1] * (wy - y0) * (wx - x0);
+  let res = view[zt * dxy + y0 * dx + x0] * cwy * cwx;
+  if (y1 < dy) res += view[zt * dxy + y1 * dx + x0] * wy * cwx;
+  if (x1 < dx) res += view[zt * dxy + y0 * dx + x1] * cwy * wx;
+  if (y1 < dy && x1 < dx) res += view[zt * dxy + y1 * dx + x1] * wy * wx;
   return res;
 }
 
@@ -360,8 +363,10 @@ export class ArchPresser {
     const out = new Float32Array(hp * wp);
 
     // 3) 각 (u, v)마다 ray-sum
+    // z 반전: CBCT z=0은 보통 하악(chin) 방향, z=dz-1은 머리 위쪽.
+    // 파노라마 이미지의 v=0(상단)이 머리 위쪽, v=hp-1(하단)이 턱이 되도록 반전.
     for (let v = 0; v < hp; v++) {
-      const zVox = (depthStartMm + v * this._pixelSize) / pz;  // depth(mm) → voxel z
+      const zVox = (dz - 1) - (depthStartMm + v * this._pixelSize) / pz;  // depth(mm) → voxel z (inverted)
 
       for (let u = 0; u < wp; u++) {
         const arcU = u * this._pixelSize;

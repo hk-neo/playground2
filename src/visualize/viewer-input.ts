@@ -18,7 +18,12 @@ export function getVolumeCameraTarget(): Vec3 {
 }
 
 export function getVolumeModelScale(volume: VolumeData): [number, number, number] {
+  // 모델 좌표를 mm 기준으로 표시. 각 축 모델 박스 반폭(mm) = dimensions[i]*spacing[i]/2.
   const [dx, dy, dz] = volume.dimensions;
-  const maxDimension = Math.max(dx, dy, dz);
-  return [dx / maxDimension, dy / maxDimension, dz / maxDimension];
+  const sp = volume.spacing;
+  return [
+    (dx * (sp[0] || 1)) / 2,
+    (dy * (sp[1] || 1)) / 2,
+    (dz * (sp[2] || 1)) / 2,
+  ];
 }

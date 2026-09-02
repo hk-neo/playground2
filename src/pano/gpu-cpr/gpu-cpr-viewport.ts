@@ -215,6 +215,10 @@ export class GpuCprViewport {
       this._fovWidth = headDepth;
     }
 
+    // 표준 파노라마 기하: 세로 = z(머리↔턱) full range.
+    this._state.panoUniforms.u_depthMinVox.value = 0;
+    this._state.panoUniforms.u_depthMaxVox.value = Math.max(0, sz - 1);
+
     // Cross-section defaults: full source volume z for sup-inf FOV.
     this._fovHeight = sz;
 
@@ -252,6 +256,15 @@ export class GpuCprViewport {
     this._thickness = Math.max(0, voxels);
     if (this._state) {
       this._state.panoUniforms.u_focalThickness.value = this._thickness;
+      this.render();
+    }
+  }
+
+  /** Panorama 세로(z) 표시 범위를 voxel 단위로 설정 (CPU ArchPresser depth 범위와 일치). */
+  setDepthRangeVox(min: number, max: number): void {
+    if (this._state) {
+      this._state.panoUniforms.u_depthMinVox.value = min;
+      this._state.panoUniforms.u_depthMaxVox.value = max;
       this.render();
     }
   }
