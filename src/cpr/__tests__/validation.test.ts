@@ -16,6 +16,16 @@ const curve: CprCurve = {
   sample: (t) => ({ x: t, y: t, z: t }),
 };
 
+function getErrorMessage(action: () => void): string {
+  try {
+    action();
+  } catch (error) {
+    if (error instanceof Error) return error.message;
+    throw error;
+  }
+  throw new Error('Expected action to throw');
+}
+
 describe('validateVolume', () => {
   it('accepts a signed 16-bit volume', () => {
     expect(() => validateVolume(signedVolume)).not.toThrow();
@@ -29,19 +39,42 @@ describe('validateVolume', () => {
   });
 
   it('rejects data whose length differs from the dimensions product', () => {
-    expect(() => validateVolume({
+    const message = getErrorMessage(() => validateVolume({
       data: new Int16Array(7),
       dimensions: [2, 2, 2],
       spacing: [0.3, 0.3, 0.3],
-    })).toThrow('Volume data length must equal dimensions product');
+    }));
+
+    expect(message).toBe('Volume data length must equal dimensions product');
   });
 
-  it('rejects non-positive spacing', () => {
-    expect(() => validateVolume({
-      ...signedVolume,
-      spacing: [0.3, 0, 0.5],
-    })).toThrow('Volume spacing values must be greater than zero');
+  it.each([
+    { dimensions: [0, 2, 2] as const, dataLength: 0 },
+    { dimensions: [-2, -2, 2] as const, dataLength: 8 },
+    { dimensions: [1.5, 2, 2] as const, dataLength: 6 },
+    { dimensions: [Number.NaN, 2, 2] as const, dataLength: 0 },
+    { dimensions: [Number.POSITIVE_INFINITY, 2, 2] as const, dataLength: 0 },
+  ])('rejects invalid dimensions $dimensions', ({ dimensions, dataLength }) => {
+    const message = getErrorMessage(() => validateVolume({
+      data: new Int16Array(dataLength),
+      dimensions,
+      spacing: [0.3, 0.3, 0.5],
+    }));
+
+    expect(message).toBe('Volume dimensions must be positive finite integers');
   });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects non-positive or non-finite spacing %s',
+    (spacing) => {
+      const message = getErrorMessage(() => validateVolume({
+        ...signedVolume,
+        spacing: [0.3, spacing, 0.5],
+      }));
+
+      expect(message).toBe('Volume spacing values must be positive finite numbers');
+    },
+  );
 });
 
 describe('validateCurve', () => {
@@ -50,10 +83,12 @@ describe('validateCurve', () => {
   });
 
   it('rejects a curve with fewer than two points', () => {
-    expect(() => validateCurve({
+    const message = getErrorMessage(() => validateCurve({
       points: [{ x: 0, y: 0, z: 0 }],
       sample: () => ({ x: 0, y: 0, z: 0 }),
-    })).toThrow('Curve must contain at least two points');
+    }));
+
+    expect(message).toBe('Curve must contain at least two points');
   });
 });
 
@@ -81,18 +116,43 @@ describe('normalizeExtractOptions', () => {
     });
   });
 
-  it('rejects a non-positive pixel size', () => {
-    expect(() => normalizeExtractOptions(signedVolume, { pixelSize: 0 }))
-      .toThrow('Pixel size must be greater than zero');
-  });
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects non-positive or non-finite pixel size %s',
+    (pixelSize) => {
+      const message = getErrorMessage(() => normalizeExtractOptions(signedVolume, { pixelSize }));
 
-  it('rejects a negative thickness', () => {
-    expect(() => normalizeExtractOptions(signedVolume, { thickness: -1 }))
-      .toThrow('Thickness must be non-negative');
+      expect(message).toBe('Pixel size must be a positive finite number');
+    },
+  );
+
+  it.each([-1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects negative or non-finite thickness %s',
+    (thickness) => {
+      const message = getErrorMessage(() => normalizeExtractOptions(signedVolume, { thickness }));
+
+      expect(message).toBe('Thickness must be a non-negative finite number');
+    },
+  );
+
+  it.each([
+    [Number.NaN, 1],
+    [0, Number.NaN],
+    [Number.NEGATIVE_INFINITY, 1],
+    [0, Number.POSITIVE_INFINITY],
+  ] as const)('rejects non-finite depth range [%s, %s]', (minimum, maximum) => {
+    const message = getErrorMessage(() => normalizeExtractOptions(signedVolume, {
+      depthRangeMm: [minimum, maximum],
+    }));
+
+    expect(message).toBe('Depth range endpoints must be finite numbers');
   });
 
   it('rejects a reversed depth range', () => {
-    expect(() => normalizeExtractOptions(signedVolume, { depthRangeMm: [1, 0] }))
-      .toThrow('Depth range minimum must not exceed maximum');
+    const message = getErrorMessage(() => normalizeExtractOptions(
+      signedVolume,
+      { depthRangeMm: [1, 0] },
+    ));
+
+    expect(message).toBe('Depth range minimum must not exceed maximum');
   });
 });
