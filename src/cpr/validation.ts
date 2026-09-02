@@ -1,0 +1,50 @@
+import type {
+  CprCurve,
+  CprExtractOptions,
+  CprVolume,
+  NormalizedCprExtractOptions,
+} from './types';
+
+export function validateVolume(volume: CprVolume): void {
+  const expectedLength = volume.dimensions[0] * volume.dimensions[1] * volume.dimensions[2];
+  if (volume.data.length !== expectedLength) {
+    throw new Error('Volume data length must equal dimensions product');
+  }
+
+  if (volume.spacing.some((value) => value <= 0)) {
+    throw new Error('Volume spacing values must be greater than zero');
+  }
+}
+
+export function validateCurve(curve: CprCurve): void {
+  if (curve.points.length < 2) {
+    throw new Error('Curve must contain at least two points');
+  }
+}
+
+export function normalizeExtractOptions(
+  volume: CprVolume,
+  options: CprExtractOptions = {},
+): NormalizedCprExtractOptions {
+  const thickness = options.thickness ?? 20;
+  const pixelSize = options.pixelSize ?? 0.3;
+  const depthRangeMm = options.depthRangeMm
+    ?? [0, volume.dimensions[2] * volume.spacing[2]] as const;
+
+  if (pixelSize <= 0) {
+    throw new Error('Pixel size must be greater than zero');
+  }
+  if (thickness < 0) {
+    throw new Error('Thickness must be non-negative');
+  }
+  if (depthRangeMm[0] > depthRangeMm[1]) {
+    throw new Error('Depth range minimum must not exceed maximum');
+  }
+
+  return {
+    thickness,
+    pixelSize,
+    mode: options.mode ?? 'mean',
+    depthRangeMm,
+  };
+}
