@@ -1,6 +1,7 @@
 import { cpSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { repackageCprUrls } from './repackage-cpr-urls.mjs';
 
 const rootUrl = new URL('../', import.meta.url);
 const rootDir = fileURLToPath(rootUrl);
@@ -12,39 +13,6 @@ if (!existsSync(generatedWasmPath)) {
     'src/cpr/generated/cpr.wasm is missing. Run "npm run build:wasm" first.',
   );
   process.exit(1);
-}
-
-function repackageCprUrls() {
-  return {
-    name: 'cpr-benchmark:repackage-urls',
-    enforce: 'pre',
-    transform(code, id) {
-      if (id.includes('src/cpr/worker-engine.ts')) {
-        const original =
-          "const worker = new Worker(new URL('./cpr-worker.ts', import.meta.url), { type: 'module' });";
-        if (!code.includes(original)) {
-          this.error('worker-engine.ts no longer constructs the default worker inline');
-        }
-        const rewritten = code.replace(
-          original,
-          'const worker = new Worker(bundledCprWorkerUrl(), { type: \'module\' });',
-        );
-        return `${rewritten}\nfunction bundledCprWorkerUrl(): URL {\n`
-          + "  return new URL('./cpr-' + 'worker.js', import.meta.url);\n}\n";
-      }
-      if (id.includes('src/cpr/generated/cpr.js')) {
-        const original = 'new URL("cpr.wasm", import.meta.url)';
-        if (!code.includes(original)) {
-          this.error('generated cpr.js no longer resolves cpr.wasm relative to itself');
-        }
-        return code.replace(
-          original,
-          'new URL("cpr.wasm" /* resolved next to this chunk */, import.meta.url)',
-        );
-      }
-      return undefined;
-    },
-  };
 }
 
 console.log('benchmark: bundling source entry (src/cpr/index.ts) for Node');
@@ -169,29 +137,32 @@ function median(values) {
 
 async function benchmarkBackend(backend, volume, curve) {
   const engine = await entry.createCprEngine({ backend });
-  if (engine.backend !== backend) {
-    throw new Error(`expected backend '${backend}' but engine selected '${engine.backend}'`);
-  }
-  await engine.setVolume(volume);
-
-  for (let i = 0; i < WARMUP_RUNS; i++) {
-    await engine.extract(curve, extractOptions);
-  }
-
-  const wallSamples = [];
-  const engineSamples = [];
-  let result;
-  for (let i = 0; i < MEASURED_RUNS; i++) {
-    const startedAt = performance.now();
-    result = await engine.extract(curve, extractOptions);
-    wallSamples.push(performance.now() - startedAt);
-    engineSamples.push(result.elapsedMs);
-    if (result.backend !== backend) {
-      throw new Error(`result reports backend '${result.backend}', expected '${backend}'`);
+  try {
+    if (engine.backend !== backend) {
+      throw new Error(`expected backend '${backend}' but engine selected '${engine.backend}'`);
     }
+    await engine.setVolume(volume);
+
+    for (let i = 0; i < WARMUP_RUNS; i++) {
+      await engine.extract(curve, extractOptions);
+    }
+
+    const wallSamples = [];
+    const engineSamples = [];
+    let result;
+    for (let i = 0; i < MEASURED_RUNS; i++) {
+      const startedAt = performance.now();
+      result = await engine.extract(curve, extractOptions);
+      wallSamples.push(performance.now() - startedAt);
+      engineSamples.push(result.elapsedMs);
+      if (result.backend !== backend) {
+        throw new Error(`result reports backend '${result.backend}', expected '${backend}'`);
+      }
+    }
+    return { wallSamples, engineSamples, result };
+  } finally {
+    engine.dispose();
   }
-  engine.dispose();
-  return { wallSamples, engineSamples, result };
 }
 
 function checksum(data) {
@@ -203,8 +174,7 @@ function checksum(data) {
 console.log('benchmark: generating deterministic fixture');
 const volume = makeVolume();
 const curve = makeArchCurve(12);
-let volumeChecksum = 0;
-for (let i = 0; i < volume.data.length; i++) volumeChecksum += volume.data[i];
+const volumeChecksum = checksum(volume.data);
 
 const cpus = os.cpus();
 console.log('');
@@ -248,8 +218,15 @@ if (cpu.result.width !== wasm.result.width || cpu.result.height !== wasm.result.
   );
 }
 
+if (cpu.result.data.length !== wasm.result.data.length) {
+  failures.push(
+    `output data lengths differ: cpu ${cpu.result.data.length} vs wasm ${wasm.result.data.length}`,
+  );
+}
+
 let maxAbsDelta = 0;
-for (let i = 0; i < cpu.result.data.length; i++) {
+const comparableLength = Math.min(cpu.result.data.length, wasm.result.data.length);
+for (let i = 0; i < comparableLength; i++) {
   maxAbsDelta = Math.max(maxAbsDelta, Math.abs(wasm.result.data[i] - cpu.result.data[i]));
 }
 const cpuChecksum = checksum(cpu.result.data);
