@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CpuCprBackend } from '../cpu-backend';
 import { prepareCurveSamples } from '../curve-samples';
+import { createCprEngine } from '../engine';
 import type {
   CprCurve,
   CprMode,
@@ -155,6 +156,38 @@ describe('AssemblyScript CPR kernel', () => {
     bindings.setVolume(volume);
     extractBoth(bindings, volume, curve, options);
   });
+
+  it.each([0.04, 0.01])(
+    'engine output dimensions match across backends for pixelSize %s below the 0.05 floor',
+    async (pixelSize) => {
+      const binary = await readFile(new URL('../generated/cpr.wasm', import.meta.url));
+      const wasmUrl = `data:application/wasm;base64,${binary.toString('base64')}`;
+      const volume = fixtures[1].volume;
+      const options = { thickness: 2.5, pixelSize, depthRangeMm: [1.25, 6.25] as const };
+
+      const cpuEngine = await createCprEngine({ backend: 'cpu' });
+      const wasmEngine = await createCprEngine({ backend: 'wasm', wasmUrl });
+      try {
+        await cpuEngine.setVolume(volume);
+        await wasmEngine.setVolume(volume);
+
+        const cpuResult = await cpuEngine.extract(curve, options);
+        const wasmResult = await wasmEngine.extract(curve, options);
+
+        // 스펙 수용기준: 모든 백엔드가 동일 width/height를 반환해야 한다.
+        // 하한 클램프로 두 결과는 0.05mm 추출과 완전히 같아야 한다.
+        const clamped = await cpuEngine.extract(curve, { ...options, pixelSize: 0.05 });
+        expect(wasmResult.width).toBe(cpuResult.width);
+        expect(wasmResult.height).toBe(cpuResult.height);
+        expect(cpuResult.width).toBe(clamped.width);
+        expect(cpuResult.height).toBe(clamped.height);
+        expect(wasmResult.data).toHaveLength(cpuResult.data.length);
+      } finally {
+        cpuEngine.dispose();
+        wasmEngine.dispose();
+      }
+    },
+  );
 
   it('keeps one resident volume copy and returns independently owned results', () => {
     const volume = makeVolume((length) => new Int16Array(length), (x, y, z) => x + y * 20 + z * 400);

@@ -116,6 +116,18 @@ describe('normalizeExtractOptions', () => {
     });
   });
 
+  it.each([0.04, 0.01, 0.001])(
+    'clamps pixel size %s below the 0.05 mm backend-parity floor',
+    (pixelSize) => {
+      expect(normalizeExtractOptions(signedVolume, { pixelSize }).pixelSize).toBe(0.05);
+    },
+  );
+
+  it('keeps pixel sizes at or above the 0.05 mm floor unchanged', () => {
+    expect(normalizeExtractOptions(signedVolume, { pixelSize: 0.05 }).pixelSize).toBe(0.05);
+    expect(normalizeExtractOptions(signedVolume, { pixelSize: 0.3 }).pixelSize).toBe(0.3);
+  });
+
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
     'rejects non-positive or non-finite pixel size %s',
     (pixelSize) => {

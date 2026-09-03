@@ -131,7 +131,7 @@ interface CprCurve {
 
 interface CprExtractOptions {
   thickness?: number;      // mm, default 20; 0 collapses to a single plane
-  pixelSize?: number;      // mm, default 0.3
+  pixelSize?: number;      // mm, default 0.3; floored at 0.05 (see below)
   mode?: 'sum' | 'mean' | 'min' | 'max'; // default 'mean'
   depthRangeMm?: readonly [number, number]; // default [0, dz * sz]
 }
@@ -148,6 +148,14 @@ interface CprResult {
 Only `sample(t)` is used by the engine; `points` must exist and contain at
 least two points but does not need to be the exact resampling used
 internally (the engine resamples the curve to 512 arc-length samples).
+
+`pixelSize` has a hard floor of **0.05 mm**. Positive values below the floor
+are clamped to 0.05 (not rejected), so the CPU and WASM backends always agree
+on output `width`/`height`. This mirrors the legacy `ArchPresser.setPixelSize`
+behavior; without the shared floor the CPU path (which clamps internally) and
+the WASM kernel (which does not) would silently produce differently sized
+images for the same request. The normalized value is what reaches every
+backend, including Worker execution. Exported as `MIN_PIXEL_SIZE_MM`.
 
 ### `engine.dispose(): void`
 
@@ -171,6 +179,9 @@ All validation happens before any backend work:
 | `extract` before `setVolume` | `CPR engine requires a volume before extraction` |
 | Any call after `dispose()` | `CPR engine is disposed` |
 | Worker execution without policy | `CPR engine execution 'worker' requires volumePolicy 'copy' or 'transfer'` |
+
+`pixelSize` values that are positive but below the 0.05 mm floor are **not**
+errors; they are clamped to 0.05 (see `engine.extract` above).
 
 Worker-only: a superseded extraction rejects with `CprRequestSupersededError`
 (exported), carrying the superseded `requestId`.
@@ -516,6 +527,7 @@ dependency version; consumers installing a prebuilt tarball never need it.
 | Library 404s only in Vite dev, works in build | Prebundling moved the chunk; add `optimizeDeps: { exclude: ['@neobiotech/cbct-cpr'] }`. |
 | WASM MIME warnings in the console | Serve `.wasm` with `Content-Type: application/wasm` (required by `WebAssembly.compileStreaming`). |
 | `engine.backend === 'cpu'` unexpectedly | Read `engine.fallbackReason`. Common causes: WASM blocked by CSP, `file://` pages without fetch, very old browsers. |
+| Output dimensions ignore a `pixelSize` below 0.05 | `pixelSize` is floored at 0.05 mm on every backend (CPU/WASM/Worker) so all backends agree on `width`/`height`. Values under the floor are clamped, not rejected. |
 | `backend: 'wasm'` rejects at startup | WebAssembly unavailable or the binary failed to fetch. The error message is the fetch/compile failure itself. |
 | Worker execution throws `requires volumePolicy` | Pass `volumePolicy: 'copy'` or `'transfer'` to `createCprEngine`. |
 | Volume buffer becomes zero-length | You chose `volumePolicy: 'transfer'`; the buffer was detached by design. Use `'copy'` if you still need it. |

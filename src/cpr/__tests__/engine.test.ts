@@ -243,6 +243,18 @@ describe('createCprEngine state machine', () => {
     expect(harness.cpu.extractCalls).toHaveLength(0);
   });
 
+  it('clamps sub-floor pixel sizes before dispatching to any backend', async () => {
+    const harness = createFactoryHarness();
+    const engine = await createCprEngine({ backend: 'cpu' }, harness.factories);
+    await engine.setVolume(makeVolume());
+
+    await engine.extract(curve, { pixelSize: 0.04 });
+    await engine.extract(curve, { pixelSize: 0.01 });
+
+    expect(harness.cpu.extractCalls[0].options.pixelSize).toBe(0.05);
+    expect(harness.cpu.extractCalls[1].options.pixelSize).toBe(0.05);
+  });
+
   it('normalizes default extract options against the current volume', async () => {
     const harness = createFactoryHarness();
     const engine = await createCprEngine({ backend: 'cpu' }, harness.factories);

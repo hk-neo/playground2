@@ -17,4 +17,4 @@ export type {
 } from './types';
 export { createCprEngine } from './engine';
 export { CprRequestSupersededError } from './worker-engine';
-export { normalizeExtractOptions, validateCurve, validateVolume } from './validation';
+export { MIN_PIXEL_SIZE_MM, normalizeExtractOptions, validateCurve, validateVolume } from './validation';
