@@ -510,14 +510,16 @@ function disposePanoCpr(): void {
   cprController?.dispose();
   cprController = null;
   cprControllerPromise = null;
-  // 진행 중인 setVolume 이후에 엔진을 정리한다.
+  // 진행 중인 setVolume 이후에 엔진을 정리한다. 체인 콜백은 마이크로태스크에서
+  // 모듈 변수를 읽으므로, 널 대입 전에 반드시 로컬로 캡처해야 한다.
+  const enginePromise = cprEnginePromise;
+  cprEnginePromise = null;
   cprVolumeReady = cprVolumeReady
-    .then(() => cprEnginePromise)
+    .then(() => enginePromise)
     .then((engine) => {
       engine?.dispose();
     })
     .catch(() => { /* teardown 중 오류는 무시 */ });
-  cprEnginePromise = null;
 }
 
 function renderPanoPreview(): void {
