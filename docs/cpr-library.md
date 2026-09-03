@@ -179,6 +179,9 @@ All validation happens before any backend work:
 | `extract` before `setVolume` | `CPR engine requires a volume before extraction` |
 | Any call after `dispose()` | `CPR engine is disposed` |
 | Worker execution without policy | `CPR engine execution 'worker' requires volumePolicy 'copy' or 'transfer'` |
+| Worker fails during init (script 404, crash) | `createCprEngine` rejects with `CPR worker error: <message>` |
+| Worker fails after init (pending requests) | pending `setVolume`/`extract` reject with `CPR worker error: <message>` |
+| Any call after a worker failure | `CPR worker backend is unusable after a worker failure` |
 
 `pixelSize` values that are positive but below the 0.05 mm floor are **not**
 errors; they are clamped to 0.05 (see `engine.extract` above).
@@ -375,6 +378,14 @@ one (the older promise rejects with `CprRequestSupersededError`), so dragging
 a curve never applies stale results. `dispose()` rejects all pending requests
 and terminates the Worker.
 
+Worker load failures never hang. If the worker script cannot be loaded
+(e.g. `dist/cpr-worker.js` 404s) or the worker crashes, the transport's
+`error` event rejects the outstanding promises: a failure during startup
+rejects `createCprEngine` itself, and a failure afterwards rejects every
+pending `setVolume`/`extract`. Once a worker has failed, that backend rejects
+all further calls with `CPR worker backend is unusable after a worker
+failure` — create a new engine to recover.
+
 ## Engine lifecycle
 
 1. `await createCprEngine(options)` — selects the backend (WASM init happens here).
@@ -523,11 +534,12 @@ dependency version; consumers installing a prebuilt tarball never need it.
 | Symptom | Likely cause / fix |
 | --- | --- |
 | `Failed to load CPR WebAssembly module: 404` | Custom `wasmUrl` is wrong or the file is not served. Check the network tab; default resolution requires `cpr.wasm` next to the served JS chunks. |
-| Worker 404 on a Vite/webpack production build | The packaged worker URL evades static detection by design, so bundlers do not emit `cpr-worker.js`. Copy it into your output and pass `workerFactory` (see [Bundler integration](#bundler-integration)). |
+| Worker 404 on a Vite/webpack production build | The packaged worker URL evades static detection by design, so bundlers do not emit `cpr-worker.js`. Copy it into your output and pass `workerFactory` (see [Bundler integration](#bundler-integration)). `createCprEngine` rejects with `CPR worker error: …` rather than hanging. |
+| `createCprEngine` rejects with `CPR worker error: …` | The worker script failed to load or crashed (often a 404 on `cpr-worker.js`). Fix the asset URL/`workerFactory`, then create a new engine. |
+| Output dimensions ignore a `pixelSize` below 0.05 | `pixelSize` is floored at 0.05 mm on every backend (CPU/WASM/Worker) so all backends agree on `width`/`height`. Values under the floor are clamped, not rejected. |
 | Library 404s only in Vite dev, works in build | Prebundling moved the chunk; add `optimizeDeps: { exclude: ['@neobiotech/cbct-cpr'] }`. |
 | WASM MIME warnings in the console | Serve `.wasm` with `Content-Type: application/wasm` (required by `WebAssembly.compileStreaming`). |
 | `engine.backend === 'cpu'` unexpectedly | Read `engine.fallbackReason`. Common causes: WASM blocked by CSP, `file://` pages without fetch, very old browsers. |
-| Output dimensions ignore a `pixelSize` below 0.05 | `pixelSize` is floored at 0.05 mm on every backend (CPU/WASM/Worker) so all backends agree on `width`/`height`. Values under the floor are clamped, not rejected. |
 | `backend: 'wasm'` rejects at startup | WebAssembly unavailable or the binary failed to fetch. The error message is the fetch/compile failure itself. |
 | Worker execution throws `requires volumePolicy` | Pass `volumePolicy: 'copy'` or `'transfer'` to `createCprEngine`. |
 | Volume buffer becomes zero-length | You chose `volumePolicy: 'transfer'`; the buffer was detached by design. Use `'copy'` if you still need it. |

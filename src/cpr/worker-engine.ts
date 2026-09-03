@@ -61,6 +61,12 @@ function createDefaultCprWorker(): CprWorkerTransport {
     get onmessage() {
       return worker.onmessage;
     },
+    set onerror(handler) {
+      worker.onerror = handler;
+    },
+    get onerror() {
+      return worker.onerror;
+    },
     terminate() {
       worker.terminate();
     },
@@ -73,6 +79,7 @@ class WorkerCprBackendSession implements CprBackendImpl {
   private pendingExtractId?: number;
   private volume?: CprVolume;
   private disposed = false;
+  private errored = false;
 
   constructor(
     private readonly worker: CprWorkerTransport,
@@ -80,6 +87,9 @@ class WorkerCprBackendSession implements CprBackendImpl {
   ) {
     this.worker.onmessage = (event) => {
       this.handleResponse(event.data as CprWorkerResponse);
+    };
+    this.worker.onerror = (event) => {
+      this.handleWorkerFailure(event);
     };
   }
 
@@ -105,6 +115,9 @@ class WorkerCprBackendSession implements CprBackendImpl {
     if (this.disposed) {
       throw new Error('CPR worker backend is disposed');
     }
+    if (this.errored) {
+      throw new Error('CPR worker backend is unusable after a worker failure');
+    }
     const policy = setVolumeOptions?.volumePolicy ?? this.volumePolicy;
     const id = this.nextRequestId++;
     const payloadVolume = policy === 'transfer'
@@ -128,6 +141,9 @@ class WorkerCprBackendSession implements CprBackendImpl {
   ): Promise<CprBackendResult> {
     if (this.disposed) {
       throw new Error('CPR worker backend is disposed');
+    }
+    if (this.errored) {
+      throw new Error('CPR worker backend is unusable after a worker failure');
     }
     if (!this.volume) {
       throw new Error('CPR worker backend requires a volume before extraction');
@@ -226,6 +242,22 @@ class WorkerCprBackendSession implements CprBackendImpl {
       return;
     }
     request.resolve(message);
+  }
+
+  private handleWorkerFailure(event: ErrorEvent): void {
+    if (this.disposed) {
+      return;
+    }
+    this.errored = true;
+    const detail = typeof event?.message === 'string' && event.message.length > 0
+      ? event.message
+      : 'worker script failed to load or crashed';
+    const error = new Error(`CPR worker error: ${detail}`);
+    for (const request of this.pending.values()) {
+      request.reject(error);
+    }
+    this.pending.clear();
+    this.pendingExtractId = undefined;
   }
 }
 

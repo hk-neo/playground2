@@ -45,6 +45,7 @@ export interface CprResult {
 export interface CprWorkerTransport {
   postMessage(message: unknown, transfer?: Transferable[]): void;
   onmessage: ((event: MessageEvent) => void) | null;
+  onerror: ((event: ErrorEvent) => void) | null;
   terminate(): void;
 }
 

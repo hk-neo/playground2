@@ -68,6 +68,7 @@ interface ScriptedWorkerHarness {
   posted: Array<{ message: CprWorkerRequest; transfer?: Transferable[] }>;
   terminated: boolean;
   emit(message: CprWorkerResponse): void;
+  emitError(message: string): void;
 }
 
 function createScriptedWorker(): ScriptedWorkerHarness {
@@ -75,6 +76,7 @@ function createScriptedWorker(): ScriptedWorkerHarness {
   let terminated = false;
   const worker: CprWorkerTransport = {
     onmessage: null,
+    onerror: null,
     postMessage(message, transfer) {
       posted.push({ message: message as CprWorkerRequest, transfer });
     },
@@ -90,6 +92,9 @@ function createScriptedWorker(): ScriptedWorkerHarness {
     },
     emit(message) {
       worker.onmessage?.({ data: message } as unknown as MessageEvent);
+    },
+    emitError(message: string) {
+      worker.onerror?.({ message } as unknown as ErrorEvent);
     },
   };
 }
@@ -113,6 +118,7 @@ function createInMemoryWorkerDouble(handlerFactories?: CprBackendFactories): InM
   harness.factory = () => {
     const worker: CprWorkerTransport = {
       onmessage: null,
+      onerror: null,
       postMessage() {},
       terminate() {
         harness.terminatedCount++;
@@ -455,6 +461,43 @@ describe('worker backend protocol', () => {
     await expect(pendingBackend).rejects.toThrow('no wasm here');
     expect(double.terminated).toBe(true);
   });
+
+  it('rejects init and terminates the worker when the worker script errors', async () => {
+    const double = createScriptedWorker();
+    const pendingBackend = createWorkerCprBackend({
+      backend: 'cpu',
+      volumePolicy: 'copy',
+      workerFactory: () => double.worker,
+    });
+    double.emitError('Failed to load module script: 404');
+    await expect(pendingBackend).rejects.toThrow(
+      'CPR worker error: Failed to load module script: 404',
+    );
+    expect(double.terminated).toBe(true);
+  });
+
+  it('rejects pending requests and blocks new ones when the worker crashes', async () => {
+    const double = createScriptedWorker();
+    const pendingBackend = createWorkerCprBackend({
+      backend: 'cpu',
+      volumePolicy: 'copy',
+      workerFactory: () => double.worker,
+    });
+    await ackInit(double);
+    const handle = await pendingBackend;
+    const pendingVolume = handle.impl.setVolume(makeVolume());
+    await ackSetVolume(double, 1);
+    await pendingVolume;
+
+    const pendingExtract = handle.impl.extract(curve, normalizedOptions) as Promise<CprBackendResult>;
+    double.emitError('worker crashed');
+    await expect(pendingExtract).rejects.toThrow('CPR worker error: worker crashed');
+    await expect(
+      handle.impl.extract(curve, normalizedOptions) as Promise<CprBackendResult>,
+    ).rejects.toThrow(/unusable after a worker failure/);
+    await expect(handle.impl.setVolume(makeVolume()) as Promise<void>)
+      .rejects.toThrow(/unusable after a worker failure/);
+  });
 });
 
 describe('createCprEngine worker execution', () => {
@@ -526,6 +569,19 @@ describe('createCprEngine worker execution', () => {
       workerFactory: harness.factory,
     })).rejects.toThrow('no wasm here');
     expect(harness.terminatedCount).toBe(1);
+  });
+
+  it('rejects engine creation when the worker errors before responding', async () => {
+    const double = createScriptedWorker();
+    const pendingEngine = createCprEngine({
+      execution: 'worker',
+      backend: 'cpu',
+      volumePolicy: 'copy',
+      workerFactory: () => double.worker,
+    });
+    double.emitError('Uncaught Error: Failed to load module script: 404');
+    await expect(pendingEngine).rejects.toThrow(/CPR worker error: .*404/);
+    expect(double.terminated).toBe(true);
   });
 });
 
