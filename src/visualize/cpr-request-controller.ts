@@ -63,6 +63,20 @@ export class CprRequestController {
     this.ensureFrame();
   }
 
+  /**
+   * 대기 중 요청을 버리고 진행 중 요청의 결과를 무효화한다(세대 증가).
+   * 볼륨 교체처럼 "이전 요청의 결과가 더 이상 의미 없을 때" 호출한다.
+   * `dispose`와 달리 이후에도 `schedule()`로 새 요청을 받을 수 있다.
+   * 진행 중 추출의 프로미스는 취소할 수 없지만, 세대가 달라져
+   * 완료 시 `onResult`로 전달되지 않는다.
+   */
+  cancelPending(): void {
+    if (this.disposed) return;
+    this.generation += 1;
+    this.pending = null;
+    this.inFlight = null;
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;

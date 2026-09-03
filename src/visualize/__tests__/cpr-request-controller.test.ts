@@ -194,6 +194,48 @@ describe('CprRequestController', () => {
     expect(stub.extractCalls).toHaveLength(1);
   });
 
+  it('cancelPending drops a queued request before it starts', () => {
+    const frames = createFrameHarness();
+    const stub = createStubEngine();
+    const delivered: CprRequest[] = [];
+    const controller = createController(stub.engine, frames, (_result, request) => {
+      delivered.push(request);
+    });
+
+    controller.schedule({ curve, options: { pixelSize: 0.6 } });
+    controller.cancelPending();
+    frames.flushFrames();
+
+    expect(stub.extractCalls).toHaveLength(0);
+    expect(delivered).toHaveLength(0);
+  });
+
+  it('cancelPending discards an in-flight result but keeps the controller usable', async () => {
+    const frames = createFrameHarness();
+    const stub = createStubEngine();
+    const delivered: CprRequest[] = [];
+    const controller = createController(stub.engine, frames, (_result, request) => {
+      delivered.push(request);
+    });
+
+    controller.schedule({ curve, options: { pixelSize: 0.6 } });
+    frames.flushFrames();
+    expect(stub.extractCalls).toHaveLength(1);
+
+    controller.cancelPending();
+    stub.resolveAt(0, makeResult(1));
+    await settle();
+    expect(delivered).toHaveLength(0);
+
+    controller.schedule({ curve, options: { pixelSize: 0.3 } });
+    frames.flushFrames();
+    expect(stub.extractCalls).toHaveLength(2);
+    stub.resolveAt(1, makeResult(2));
+    await settle();
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0].options?.pixelSize).toBe(0.3);
+  });
+
   it('never starts more than one extract per frame even when results settle immediately', async () => {
     const frames = createFrameHarness();
     const delivered: CprRequest[] = [];

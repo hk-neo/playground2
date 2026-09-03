@@ -42,6 +42,9 @@ let cprEnginePromise: Promise<CprEngine> | null = null;
 let cprControllerPromise: Promise<CprRequestController> | null = null;
 let cprController: CprRequestController | null = null;
 let cprVolumeReady: Promise<void> = Promise.resolve();
+// 볼륨 교체(시리즈 변경) 세대. setPanoVolume마다 증가하며, 이 값이 바뀌면
+// 그 전에 예약된 추출은 옛 볼륨 기준이므로 폐기한다(새 볼륨에 렌더 방지).
+let cprVolumeGeneration = 0;
 let panoView: PanoView;
 let panePanoView: PanoView;
 let gpuPano: GpuCprViewport | null = null;
@@ -209,6 +212,10 @@ export function setPanoVolume(
 ): void {
   currentVolume = volume;
   userOverrodeWLWW = false; // 새 볼륨 로드 → auto WL/WW 다시 활성화
+  // 볼륨(시리즈) 교체 → 이전 볼륨 기준으로 진행 중/대기 중인 추출을 무효화한다.
+  // 세대를 올려 옛 결과가 새 볼륨 위에 렌더되는 것을 막는다.
+  cprVolumeGeneration += 1;
+  cprController?.cancelPending();
   setSharedWlww(windowLevel, windowWidth);
   panoView.setWLWW(windowLevel, windowWidth);
   panePanoView.setWLWW(windowLevel, windowWidth);
@@ -225,8 +232,10 @@ export function setPanoVolume(
     const headDepth = Math.max(dx * sp[0], dy * sp[1]);
     focalTrough.setThickness(headDepth);
     // 볼륨 변경 → CPR 엔진에 setVolume. 직렬 체인으로 순서 보장.
+    // 컨트롤러도 함께 확보해둬야 이후 볼륨 교체 시 진행 중 추출을 취소할 수 있다.
     const cprVolume = toCprVolume(volume);
     cprVolumeReady = cprVolumeReady
+      .then(() => ensureCprController())
       .then(() => ensureCprEngine())
       .then((engine) => engine.setVolume(cprVolume))
       .catch((error) => {
@@ -480,9 +489,14 @@ function ensureCprController(): Promise<CprRequestController> {
 
 function scheduleCprExtract(request: CprRequest): void {
   // setVolume 완료 후에만 extract가 돌도록 직렬 체인을 먼저 기다린다.
+  // 예약 시점의 볼륨 세대를 캡처해, 대기 중에 볼륨이 교체되면 옛 요청을 폐기한다.
+  const generation = cprVolumeGeneration;
   void cprVolumeReady
     .then(() => ensureCprController())
-    .then((controller) => controller.schedule(request))
+    .then((controller) => {
+      if (generation !== cprVolumeGeneration) return;
+      controller.schedule(request);
+    })
     .catch((error) => {
       console.error('pano-wiring: CPR schedule failed', error);
     });
