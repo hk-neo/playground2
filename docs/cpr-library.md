@@ -197,8 +197,11 @@ if (engine.backend === 'cpu' && engine.fallbackReason) {
 
 By default the packaged ESM wrapper resolves `cpr.wasm` next to the loaded
 chunk (`new URL('cpr.wasm', import.meta.url)`), so no configuration is needed
-when `dist/` is served as-is. Provide `wasmUrl` when the binary lives
-elsewhere (CDN, asset pipeline with hashed names, data URL in tests):
+when the package `dist/` directory is served as-is (plain ESM). Bundler
+builds have extra requirements — see
+[Bundler integration](#bundler-integration). Provide `wasmUrl` when the
+binary lives elsewhere (CDN, asset pipeline with hashed names, data URL in
+tests):
 
 ```ts
 const engine = await createCprEngine({
@@ -212,25 +215,85 @@ const engine = await createCprEngine({
 
 ### Vite
 
+> **Design note:** the library build (`vite.lib.config.ts`) deliberately
+> disables Vite's static `new Worker(new URL(...))` and
+> `new URL('literal', import.meta.url)` detection so that `dist/cpr.wasm`
+> and `dist/cpr-worker.js` stay standalone files instead of being inlined
+> or hashed into the library bundle. As a consequence this package does not
+> rely on bundler static asset detection; the host application must make
+> sure the two files are reachable at runtime (details below).
+
+**Dev server — `optimizeDeps.exclude` is required.** When the package is
+installed from a package manager, Vite prebundles dependencies into
+`node_modules/.vite/deps/`. The prebundled chunk's `import.meta.url` no
+longer points at the package's `dist/`, so the relative `cpr.wasm` and
+`cpr-worker.js` resolution breaks (404 in the dev server):
+
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  optimizeDeps: { exclude: ['@neobiotech/cbct-cpr'] }, // optional: skip prebundling
+  optimizeDeps: { exclude: ['@neobiotech/cbct-cpr'] }, // required, not optional
+});
+```
+
+**Production build (`vite build`)** — the two assets behave differently:
+
+- `cpr.wasm`: the shipped `dist/cpr.js` contains a plain
+  `new URL("cpr.wasm", import.meta.url)`. Vite's asset pipeline detects it,
+  emits the binary into your output, and rewrites the reference. No action
+  needed in a standard setup.
+- `cpr-worker.js`: the packaged worker URL is produced through a helper
+  function (intentionally, to evade the library build's worker bundling),
+  so Vite does **not** detect it and does not emit the file. With the
+  default `workerFactory`, `execution: 'worker'` 404s on the production
+  build.
+
+So for production use with `execution: 'worker'`, copy
+`node_modules/@neobiotech/cbct-cpr/dist/cpr-worker.js` into your served
+output and pass an explicit factory:
+
+```ts
+// vite.config.ts (production): copy the worker next to the output
+import { copyFileSync, mkdirSync } from 'node:fs';
+
+export default defineConfig({
+  optimizeDeps: { exclude: ['@neobiotech/cbct-cpr'] },
+  plugins: [
+    {
+      name: 'copy-cpr-worker',
+      closeBundle() {
+        mkdirSync('dist/vendor', { recursive: true });
+        copyFileSync(
+          'node_modules/@neobiotech/cbct-cpr/dist/cpr-worker.js',
+          'dist/vendor/cpr-worker.js',
+        );
+      },
+    },
+  ],
 });
 ```
 
 ```ts
 // app code
-import { createCprEngine } from '@neobiotech/cbct-cpr';
+const engine = await createCprEngine({
+  execution: 'worker',
+  volumePolicy: 'copy',
+  workerFactory: () => new Worker('/vendor/cpr-worker.js', { type: 'module' }),
+});
 ```
 
-`cpr.wasm` and `cpr-worker.js` sit next to `dist/index.js`; Vite serves them
-from `node_modules/@neobiotech/cbct-cpr/dist/` and the relative
-`import.meta.url` resolution works without extra config. If you enable
-`build.rollupOptions.output` asset hashing, copy/serve the `dist` folder
-verbatim or pass an explicit `wasmUrl` and `workerFactory`.
+Alternatively, if your deployment serves the package `dist/` directory as a
+static path (e.g. `/vendor/cbct-cpr/`), point both assets there explicitly:
+
+```ts
+const engine = await createCprEngine({
+  wasmUrl: '/vendor/cbct-cpr/cpr.wasm',
+  workerFactory: () =>
+    new Worker(new URL('/vendor/cbct-cpr/cpr-worker.js', location.origin), { type: 'module' }),
+});
+```
 
 ### webpack 5
 
@@ -417,6 +480,8 @@ dependency version; consumers installing a prebuilt tarball never need it.
 | Symptom | Likely cause / fix |
 | --- | --- |
 | `Failed to load CPR WebAssembly module: 404` | Custom `wasmUrl` is wrong or the file is not served. Check the network tab; default resolution requires `cpr.wasm` next to the served JS chunks. |
+| Worker 404 on a Vite/webpack production build | The packaged worker URL evades static detection by design, so bundlers do not emit `cpr-worker.js`. Copy it into your output and pass `workerFactory` (see [Bundler integration](#bundler-integration)). |
+| Library 404s only in Vite dev, works in build | Prebundling moved the chunk; add `optimizeDeps: { exclude: ['@neobiotech/cbct-cpr'] }`. |
 | WASM MIME warnings in the console | Serve `.wasm` with `Content-Type: application/wasm` (required by `WebAssembly.compileStreaming`). |
 | `engine.backend === 'cpu'` unexpectedly | Read `engine.fallbackReason`. Common causes: WASM blocked by CSP, `file://` pages without fetch, very old browsers. |
 | `backend: 'wasm'` rejects at startup | WebAssembly unavailable or the binary failed to fetch. The error message is the fetch/compile failure itself. |

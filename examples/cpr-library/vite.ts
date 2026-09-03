@@ -5,11 +5,45 @@
  *   npm create vite@latest cpr-demo -- --template vanilla-ts
  *   cd cpr-demo
  *   npm install /path/to/playground2   # or the packed tarball
- *   # copy this file to src/main.ts
+ *   # copy this file to src/main.ts and add the vite.config.ts below
  *   npm run dev
  *
- * No Vite configuration is required: the package resolves cpr.wasm and
- * cpr-worker.js relative to its own dist/ chunks via import.meta.url.
+ * Required vite.config.ts:
+ *
+ *   import { defineConfig } from 'vite';
+ *   import { copyFileSync, mkdirSync } from 'node:fs';
+ *
+ *   export default defineConfig({
+ *     // REQUIRED in dev: prebundling rewrites import.meta.url into
+ *     // node_modules/.vite/deps/, breaking cpr.wasm / cpr-worker.js
+ *     // resolution relative to the package's dist/.
+ *     optimizeDeps: { exclude: ['@neobiotech/cbct-cpr'] },
+ *     plugins: [
+ *       // Production only: Vite's asset pipeline picks up cpr.wasm
+ *       // automatically, but NOT cpr-worker.js (the packaged worker URL
+ *       // deliberately evades static detection). Copy it into the output
+ *       // if you use execution: 'worker'.
+ *       {
+ *         name: 'copy-cpr-worker',
+ *         closeBundle() {
+ *           mkdirSync('dist/vendor', { recursive: true });
+ *           copyFileSync(
+ *             'node_modules/@neobiotech/cbct-cpr/dist/cpr-worker.js',
+ *             'dist/vendor/cpr-worker.js',
+ *           );
+ *         },
+ *       },
+ *     ],
+ *   });
+ *
+ * Production notes:
+ * - cpr.wasm: emitted and rewritten by Vite's asset pipeline automatically.
+ * - cpr-worker.js: NOT emitted by design. If you enable execution: 'worker',
+ *   copy it as above and pass an explicit factory:
+ *     workerFactory: () => new Worker('/vendor/cpr-worker.js', { type: 'module' })
+ *
+ * This example runs on the main thread, so only the wasm asset matters and
+ * no worker copy step is needed.
  */
 import {
   createCprEngine,
