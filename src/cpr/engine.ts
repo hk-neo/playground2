@@ -15,10 +15,14 @@ import {
   validateVolume,
 } from './validation';
 import { createWasmCprBackend } from './wasm-backend';
+import { createWorkerCprBackend } from './worker-engine';
 
 export interface CprBackendImpl {
-  setVolume(volume: CprVolume): void;
-  extract(curve: CprCurve, options: NormalizedCprExtractOptions): CprBackendResult;
+  setVolume(volume: CprVolume, options?: SetVolumeOptions): void | Promise<void>;
+  extract(
+    curve: CprCurve,
+    options: NormalizedCprExtractOptions,
+  ): CprBackendResult | Promise<CprBackendResult>;
   dispose(): void;
 }
 
@@ -29,12 +33,12 @@ export interface CprBackendFactories {
 
 type EngineState = 'ready' | 'volume-set' | 'disposed';
 
-const defaultBackendFactories: CprBackendFactories = {
+export const defaultBackendFactories: CprBackendFactories = {
   createCpuBackend: () => new CpuCprBackend(),
   createWasmBackend: (wasmUrl) => createWasmCprBackend(wasmUrl),
 };
 
-async function selectBackend(
+export async function selectBackend(
   options: CprEngineOptions,
   factories: CprBackendFactories,
 ): Promise<{ backend: CprBackendImpl; name: 'wasm' | 'cpu'; fallbackReason?: string }> {
@@ -64,24 +68,22 @@ function assertNotDisposed(state: EngineState): void {
   }
 }
 
-export async function createCprEngine(
-  options: CprEngineOptions = {},
-  factories: CprBackendFactories = defaultBackendFactories,
-): Promise<CprEngine> {
-  const selected = await selectBackend(options, factories);
-  const { backend, name } = selected;
-
+function createEngineFacade(
+  backend: CprBackendImpl,
+  name: 'wasm' | 'cpu',
+  fallbackReason?: string,
+): CprEngine {
   let state: EngineState = 'ready';
   let volume: CprVolume | undefined;
 
   return {
     backend: name,
-    fallbackReason: selected.fallbackReason,
+    fallbackReason,
 
-    async setVolume(nextVolume: CprVolume, _setVolumeOptions?: SetVolumeOptions): Promise<void> {
+    async setVolume(nextVolume: CprVolume, setVolumeOptions?: SetVolumeOptions): Promise<void> {
       assertNotDisposed(state);
       validateVolume(nextVolume);
-      backend.setVolume(nextVolume);
+      await backend.setVolume(nextVolume, setVolumeOptions);
       volume = nextVolume;
       state = 'volume-set';
     },
@@ -95,7 +97,7 @@ export async function createCprEngine(
       const normalized = normalizeExtractOptions(volume, extractOptions);
 
       const startedAt = performance.now();
-      const extracted = backend.extract(curve, normalized);
+      const extracted = await backend.extract(curve, normalized);
       const elapsedMs = performance.now() - startedAt;
 
       return { ...extracted, backend: name, elapsedMs };
@@ -108,4 +110,29 @@ export async function createCprEngine(
       state = 'disposed';
     },
   };
+}
+
+export async function createCprEngine(
+  options: CprEngineOptions = {},
+  factories: CprBackendFactories = defaultBackendFactories,
+): Promise<CprEngine> {
+  const execution = options.execution ?? 'main';
+
+  if (execution === 'worker') {
+    if (!options.volumePolicy) {
+      throw new Error(
+        "CPR engine execution 'worker' requires volumePolicy 'copy' or 'transfer'",
+      );
+    }
+    const handle = await createWorkerCprBackend({
+      backend: options.backend ?? 'auto',
+      volumePolicy: options.volumePolicy,
+      wasmUrl: options.wasmUrl,
+      workerFactory: options.workerFactory,
+    });
+    return createEngineFacade(handle.impl, handle.backend, handle.fallbackReason);
+  }
+
+  const selected = await selectBackend(options, factories);
+  return createEngineFacade(selected.backend, selected.name, selected.fallbackReason);
 }

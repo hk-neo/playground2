@@ -42,10 +42,20 @@ export interface CprResult {
   readonly elapsedMs: number;
 }
 
+export interface CprWorkerTransport {
+  postMessage(message: unknown, transfer?: Transferable[]): void;
+  onmessage: ((event: MessageEvent) => void) | null;
+  terminate(): void;
+}
+
+export type CprWorkerFactory = () => CprWorkerTransport;
+
 export interface CprEngineOptions {
   readonly backend?: CprBackend;
   readonly execution?: CprExecution;
+  readonly volumePolicy?: CprVolumePolicy;
   readonly wasmUrl?: string | URL;
+  readonly workerFactory?: CprWorkerFactory;
 }
 
 export interface SetVolumeOptions {

@@ -10,8 +10,11 @@ export type {
   CprResult,
   CprVolume,
   CprVolumePolicy,
+  CprWorkerFactory,
+  CprWorkerTransport,
   NormalizedCprExtractOptions,
   SetVolumeOptions,
 } from './types';
 export { createCprEngine } from './engine';
+export { CprRequestSupersededError } from './worker-engine';
 export { normalizeExtractOptions, validateCurve, validateVolume } from './validation';
