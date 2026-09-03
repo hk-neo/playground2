@@ -28,7 +28,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smoke:cpr": "node scripts/smoke-cpr-package.mjs"
+    "smoke:cpr": "node scripts/smoke-cpr-package.mjs",
+    "benchmark:cpr": "node scripts/benchmark-cpr.mjs"
   },
   "devDependencies": {
     "@types/node": "^25.6.2",

@@ -380,17 +380,49 @@ requests to one per animation frame).
 
 ## Performance guide
 
-- WASM extraction is typically several times faster than the CPU backend for
-  full-resolution volumes; both produce numerically equivalent output
-  (float32 rounding differences below ~1e-3).
+Measured by the reproducible benchmark (`npm run benchmark:cpr`: deterministic
+seeded 256³ Int16 volume, 12-point arch curve, `thickness=15`, `pixelSize=0.3`,
+`mode='mean'`, 282×256 output, 1 warmup + 5 measured runs per backend, median
+reported):
+
+| Backend | Median extraction time |
+| --- | --- |
+| CPU (TypeScript) | 82.9 ms |
+| WASM (AssemblyScript) | 70.6 ms |
+
+Measured on Apple M3 Max, 16 logical cores, Node v24.14.0, darwin arm64.
+Speedup ≈ **1.17×** (repeat runs landed between 1.15× and 1.17×); both
+backends produced bit-identical output for this fixture (max abs delta 0,
+checked against a 1e-3 tolerance). Timings are machine-dependent — rerun the
+benchmark on your own hardware.
+
+### Why the WASM backend is only marginally faster
+
+- The kernel is **bound by scattered 2-byte volume reads**. Every output
+  pixel marches a ray through the volume and bilinearly samples at arbitrary
+  offsets, so memory access, not arithmetic, dominates runtime.
+- Bilinear sampling stays scalar: current wasm SIMD has no gather/scatter
+  loads, so a vectorized march would still issue each 2-byte load
+  individually plus lane-shuffle overhead.
+- A SIMD-friendly rewrite (fixed-step marching) would sample different
+  positions and change the output relative to the CPU backend. Existing CPU
+  output is the compatibility definition, so that trade-off is rejected.
+- Choose WASM for the moderate speedup and for Worker offloading, not for an
+  order-of-magnitude win.
+
+### Practical levers (largest effect first)
+
+- Output resolution dominates cost: output pixels scale with
+  `1/pixelSize²`. Use `pixelSize` 0.6–1.0 mm while dragging the curve
+  (roughly 4× cheaper than 0.3 mm) and re-extract once at 0.3 mm after
+  pointer release.
 - `setVolume` dominates WASM cost for large volumes (one memcpy into linear
   memory per call). Set the volume once, extract many times.
-- Use a larger `pixelSize` (e.g. 0.6–1.0 mm) for interactive previews and
-  re-extract at 0.3 mm after pointer release.
 - Keep `thickness` as small as the task allows: ray marching steps scale with
   thickness in both backends.
-- Prefer `execution: 'worker'` + `volumePolicy: 'transfer'` for interactive
-  use on large volumes; the main thread stays responsive and no copy occurs.
+- `execution: 'worker'` + `volumePolicy: 'transfer'` does not change the
+  backend speedup, but extraction stops blocking the UI thread — the main
+  benefit for interactive use on large volumes.
 - The curve is resampled to 512 arc-length samples regardless of the input
   point count; extra input points are essentially free.
 
