@@ -203,5 +203,12 @@ describe('CurveEditorController', () => {
       expect(ctrl.curve.points.length).toBeGreaterThanOrEqual(8);
       expect(ctrl.curve.closed).toBe(false);
     });
+
+    it.each(['Ellipse', 'Arch'] as const)('places the %s preset on the active axial slice', (preset) => {
+      ctrl.setActiveSlice(MPRPlane.Axial, 7);
+      ctrl.loadPreset(preset, vol);
+
+      expect(ctrl.curve.points.every((point) => point.z === 7)).toBe(true);
+    });
   });
 });

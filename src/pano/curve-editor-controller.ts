@@ -250,10 +250,12 @@ export class CurveEditorController implements ICurveEditorController {
     this.pushUndo();
     const [dx, dy, dz] = volume.dimensions;
     const dims = { x: dx, y: dy, z: dz };
+    const axialSlice = Math.max(0, Math.min(dz - 1, this._activeSlice.Axial));
+    const centerZ = axialSlice / dz;
     if (name === 'Ellipse') {
-      this._curve = createEllipseCurve(dims);
+      this._curve = createEllipseCurve(dims, { centerZ });
     } else {
-      this._curve = createArchCurve(dims);
+      this._curve = createArchCurve(dims, { center: { z: centerZ } });
     }
     this.emitCurve();
   }

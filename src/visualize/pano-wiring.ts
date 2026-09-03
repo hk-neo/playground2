@@ -1,5 +1,5 @@
 /**
- * Pano wiring — simplified: full CBCT z + full in-plane 자동, mode 버튼만, WL/WW는 MPR view에서 연동.
+ * Pano wiring — dental Z crop + full in-plane 자동, mode 버튼만, WL/WW는 MPR view에서 연동.
  */
 import { ViewLayoutManager } from '../app/view-layout-manager';
 import { computeLayoutFlex } from '../app/layout-flex';
@@ -11,7 +11,7 @@ import {
 } from '../pano';
 import { renderMprSlice, installWlwwSync, setSharedWlww, getWlwwApplier } from '../pano/slice-renderer';
 import { computeAutoWLWW } from '../pano/pano-auto-wlww';
-import { createCprEngine } from '../cpr';
+import { createCprEngine, validateVolume } from '../cpr';
 import type { CprEngine, CprMode, CprResult, CprVolume } from '../cpr';
 import { CprRequestController, type CprRequest } from './cpr-request-controller';
 import type { LayoutRegion, LayoutSnapshot } from '../shared/interfaces/layout';
@@ -38,6 +38,7 @@ let focalTrough: FocalTrough;
 // (renderPanoPreview 실시간 drag preview는 focalTrough CPU로 가볍게 유지 — 60fps 보존)
 let panoThicknessMm = 15;
 let panoMode: CprMode = 'mean';
+const CPR_SUPERIOR_MARGIN_MM = 50;
 let cprEnginePromise: Promise<CprEngine> | null = null;
 let cprControllerPromise: Promise<CprRequestController> | null = null;
 let cprController: CprRequestController | null = null;
@@ -152,13 +153,7 @@ export function initPanoWiring(): void {
       // renderModalPanoPreview는 무겁다(detectBestDepthRange + extract). Drag 중 pointermove가
       // 100Hz로 발화되면 매번 extract → 누적 1초+. rAF로 throttle하여 다음 frame에서
       // 한 번만 실행 (60fps 보장).
-      if (curve.points.length >= 2 && !panoPreviewQueued) {
-        panoPreviewQueued = true;
-        requestAnimationFrame(() => {
-          panoPreviewQueued = false;
-          renderModalPanoPreview();
-        });
-      }
+      queueModalPanoPreview();
     }
     syncCurveEditorState();
   });
@@ -210,6 +205,9 @@ export function setPanoVolume(
   windowLevel = 500,
   windowWidth = 2500,
 ): void {
+  const cprVolume = volume ? toCprVolume(volume) : null;
+  if (cprVolume) validateVolume(cprVolume);
+  cancelQueuedModalPanoPreview();
   currentVolume = volume;
   userOverrodeWLWW = false; // 새 볼륨 로드 → auto WL/WW 다시 활성화
   // 볼륨(시리즈) 교체 → 이전 볼륨 기준으로 진행 중/대기 중인 추출을 무효화한다.
@@ -233,11 +231,10 @@ export function setPanoVolume(
     focalTrough.setThickness(headDepth);
     // 볼륨 변경 → CPR 엔진에 setVolume. 직렬 체인으로 순서 보장.
     // 컨트롤러도 함께 확보해둬야 이후 볼륨 교체 시 진행 중 추출을 취소할 수 있다.
-    const cprVolume = toCprVolume(volume);
     cprVolumeReady = cprVolumeReady
       .then(() => ensureCprController())
       .then(() => ensureCprEngine())
-      .then((engine) => engine.setVolume(cprVolume))
+      .then((engine) => engine.setVolume(cprVolume!))
       .catch((error) => {
         console.error('pano-wiring: CPR setVolume failed', error);
       });
@@ -383,6 +380,7 @@ function setupCurveEditor(): void {
     curveEditorCtl.setActiveSlice(MPRPlane.Axial, v);
     modalAxialSliderVal.textContent = modalAxialSlider.value;
     renderModalAxialSlice();
+    queueModalPanoPreview();
   });
 }
 
@@ -394,6 +392,7 @@ function cancelCurveEditor(): void {
 function applyCurveEditor(): void {
   if (curveEditorCtl.curve.points.length < 2) return;
   curveEditorCtl.apply();
+  cancelQueuedModalPanoPreview();
   renderPanoFinal();
   if (curveEditorModal) curveEditorModal.hidden = true;
 }
@@ -454,6 +453,20 @@ function userCurveZ(curve: { points: ReadonlyArray<{ z: number }> }): number {
   let sum = 0;
   for (const p of curve.points) sum += p.z;
   return sum / curve.points.length;
+}
+
+function dentalDepthRangeMm(volume: VolumeData): [number, number] {
+  const depth = volume.dimensions[2];
+  const spacingZ = volume.spacing[2] || 1;
+  const lastSlice = depth - 1;
+  const editingSlice = Math.max(
+    0,
+    Math.min(lastSlice, curveEditorCtl.getActiveSlice(MPRPlane.Axial)),
+  );
+  const superiorSlice = Math.min(lastSlice, editingSlice + CPR_SUPERIOR_MARGIN_MM / spacingZ);
+
+  // CPR depth is inverted: 0mm starts at the superior end, while storage z=0 is the chin.
+  return [(lastSlice - superiorSlice) * spacingZ, depth * spacingZ];
 }
 
 function toCprVolume(volume: VolumeData): CprVolume {
@@ -560,10 +573,7 @@ function renderPanoFinal(): void {
   if (!currentVolume) return;
   if (curveEditorCtl.curve.points.length < 2) return;
   const curve = curveEditorCtl.curve;
-  const spacing = currentVolume.spacing;
-  const spZ = spacing[2] || 1;
-  // 공개 CPR 엔진 — developable surface panorama. depth range: 전체 z축 (머리끝~턱끝).
-  const volumeDepthMm = currentVolume.dimensions[2] * spZ;
+  const depthRangeMm = dentalDepthRangeMm(currentVolume);
 
   // cross-section(orthogonal/tangential)용 curve frame 샘플러 갱신.
   // 추출 결과와 무관하게 curve에만 의존하므로 즉시 갱신한다.
@@ -577,7 +587,7 @@ function renderPanoFinal(): void {
       thickness: panoThicknessMm,
       pixelSize: 0.3, // 풀해상도
       mode: panoMode,
-      depthRangeMm: [0, volumeDepthMm],
+      depthRangeMm,
     },
   });
 }
@@ -764,7 +774,27 @@ let modalWlwwListenerBound = false;
 // drag 끝나면 풀해상도(0.5)로 다시 그린다 — drag 중 60fps 유지 + 끝에 고품질 확정.
 let isCurveDragging = false;
 // rAF throttle: 연속된 onCurveChange 호출은 다음 frame에서 한 번만 renderModalPanoPreview 실행.
-let panoPreviewQueued = false;
+let panoPreviewQueuedGeneration: number | null = null;
+let panoPreviewQueueToken = 0;
+
+function cancelQueuedModalPanoPreview(): void {
+  panoPreviewQueuedGeneration = null;
+  panoPreviewQueueToken += 1;
+}
+
+function queueModalPanoPreview(): void {
+  if (curveEditorCtl.curve.points.length < 2) return;
+  const generation = cprVolumeGeneration;
+  if (panoPreviewQueuedGeneration === generation) return;
+  panoPreviewQueuedGeneration = generation;
+  const token = ++panoPreviewQueueToken;
+  requestAnimationFrame(() => {
+    if (token !== panoPreviewQueueToken) return;
+    panoPreviewQueuedGeneration = null;
+    if (generation !== cprVolumeGeneration) return;
+    renderModalPanoPreview();
+  });
+}
 
 function renderModalAxialSlice(): void {
   if (!currentVolume) return;
@@ -820,6 +850,7 @@ function wireModalAxialDrag(): void {
       modalAxialSliderVal.textContent = String(next);
       curveEditorCtl.setActiveSlice(MPRPlane.Axial, next);
       renderModalAxialSlice();
+      queueModalPanoPreview();
     }
   }, { passive: false });
 
@@ -861,7 +892,8 @@ function wireModalAxialDrag(): void {
     dragIndex = -1;
     if (isCurveDragging) {
       isCurveDragging = false;
-      // drag 끝 → 풀해상도 pano preview 즉시 갱신 (rAF queue가 이미 있으면 그게 처리).
+      cancelQueuedModalPanoPreview();
+      // drag 끝 → 대기 중인 저해상도 frame을 버리고 풀해상도로 즉시 갱신.
       if (curveEditorCtl.curve.points.length >= 2) renderModalPanoPreview();
     }
     dragged = false;
@@ -870,6 +902,11 @@ function wireModalAxialDrag(): void {
   modalAxialCanvas.addEventListener('pointercancel', () => {
     suppressNextModalClick = true;
     dragIndex = -1;
+    if (isCurveDragging) {
+      isCurveDragging = false;
+      cancelQueuedModalPanoPreview();
+      if (curveEditorCtl.curve.points.length >= 2) renderModalPanoPreview();
+    }
     dragged = false;
   });
 }
@@ -928,9 +965,8 @@ function renderModalPanoPreview(): void {
   }
   // 공개 CPR 엔진 — 메인과 동일한 developable surface panorama 알고리즘. 결과 일치.
   // Drag 중에는 저해상도(pixelSize=0.6), 끝나면 풀해상도(0.3). pointerup에서 즉시 갱신.
-  // depth range: 메인과 동일하게 전체 z축.
-  const spacingZ = currentVolume.spacing[2] || 1;
-  const volumeDepthMm = currentVolume.dimensions[2] * spacingZ;
+  // 편집 axial 평면 위 50mm부터 턱까지로 제한해 불필요한 superior Z 계산을 피한다.
+  const depthRangeMm = dentalDepthRangeMm(currentVolume);
   scheduleCprExtract({
     curve: curveEditorCtl.curve,
     quality: isCurveDragging ? 'preview' : 'final',
@@ -938,7 +974,7 @@ function renderModalPanoPreview(): void {
       thickness: panoThicknessMm,
       pixelSize: isCurveDragging ? 0.6 : 0.3,
       mode: panoMode,
-      depthRangeMm: [0, volumeDepthMm],
+      depthRangeMm,
     },
   });
 }
