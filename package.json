@@ -1,29 +1,46 @@
 {
-  "name": "local-cbct-viewer",
+  "name": "@neobiotech/cbct-cpr",
   "version": "0.1.0",
   "private": true,
-  "description": "Local CBCT Web Viewer - 의료 영상 뷰어",
+  "description": "Curved planar reconstruction (CPR) library for browser ESM with WebAssembly and CPU backends",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./cpr-worker": "./dist/cpr-worker.js",
+    "./cpr.wasm": "./dist/cpr.wasm",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
   "scripts": {
     "dev": "vite",
-    "build": "tsc",
+    "build": "npm run build:wasm && npm run build:lib",
     "build:wasm": "node scripts/build-cpr-wasm.mjs",
+    "build:lib": "node scripts/build-cpr-lib.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "smoke:cpr": "node scripts/smoke-cpr-package.mjs"
   },
   "devDependencies": {
     "@types/node": "^25.6.2",
     "@types/three": "0.172.0",
     "assemblyscript": "^0.28.20",
+    "jpeg-lossless-decoder-js": "^2.1.2",
     "jsdom": "^29.1.1",
+    "neo-dicom-parser": "github:NeobiotechLabs/neo-dicom-parser",
     "puppeteer": "^24.43.1",
+    "three": "0.172.0",
     "typescript": "^5.4.0",
     "vite": "^8.0.12",
     "vitest": "^4.1.5"
-  },
-  "dependencies": {
-    "jpeg-lossless-decoder-js": "^2.1.2",
-    "neo-dicom-parser": "github:NeobiotechLabs/neo-dicom-parser",
-    "three": "0.172.0"
   }
 }
