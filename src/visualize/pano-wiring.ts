@@ -1,14 +1,19 @@
 /**
- * Pano wiring — simplified: full CBCT z + full in-plane 자동, mode 버튼만, WL/WW는 MPR view에서 연동.
+ * Pano wiring — dental Z crop + full in-plane 자동, mode 버튼만, WL/WW는 MPR view에서 연동.
  */
 import { ViewLayoutManager } from '../app/view-layout-manager';
 import { computeLayoutFlex } from '../app/layout-flex';
 import {
   PanoramicCurve, FocalTrough, CurveEditorController, CurveEditorView,
   PanoView, PanoRenderer, hitTestCanvasPoint,
-  GpuCprViewport, supportsGpuCpr, ArchPresser,
+  GpuCprViewport,
+  CurveFrameSampler, buildCrossSectionSpec, extractCrossSection,
 } from '../pano';
-import { renderMprSlice, installWlwwSync, setSharedWlww } from '../pano/slice-renderer';
+import { renderMprSlice, installWlwwSync, setSharedWlww, getWlwwApplier } from '../pano/slice-renderer';
+import { computeAutoWLWW } from '../pano/pano-auto-wlww';
+import { createCprEngine, validateVolume } from '../cpr';
+import type { CprEngine, CprMode, CprResult, CprVolume } from '../cpr';
+import { CprRequestController, type CprRequest } from './cpr-request-controller';
 import type { LayoutRegion, LayoutSnapshot } from '../shared/interfaces/layout';
 import type { VolumeData } from '../shared/types/volume';
 import { MPRPlane } from '../shared/types/rendering';
@@ -24,17 +29,34 @@ let layout: ViewLayoutManager;
  * 별도 트리거 없이는 다음 슬라이더/휠 입력까지 이미지가 비어 있다.
  */
 export const LAYOUT_RESIZED_EVENT = 'cbct-layout-resized';
+/** 파노라마에서 curve 위치를 선택했을 때 3D 단면 갱신용 이벤트 */
+export const PANORAMA_PICK_EVENT = 'cbct-pano-pick';
 let curveEditorCtl: CurveEditorController;
 let curveEditorView: CurveEditorView;
 let focalTrough: FocalTrough;
-// ArchPresser — developable surface 기반 panorama 알고리즘.
-// renderPanoFinal / renderModalPanoPreview가 메인 + 모달 preview 결과 일치를 위해 사용.
+// 공개 CPR 엔진(src/cpr) — 메인 + 모달 preview 결과 일치를 위한 단일 인스턴스.
 // (renderPanoPreview 실시간 drag preview는 focalTrough CPU로 가볍게 유지 — 60fps 보존)
-let archPresser: ArchPresser;
+let panoThicknessMm = 15;
+let panoMode: CprMode = 'mean';
+const CPR_SUPERIOR_MARGIN_MM = 50;
+let cprEnginePromise: Promise<CprEngine> | null = null;
+let cprControllerPromise: Promise<CprRequestController> | null = null;
+let cprController: CprRequestController | null = null;
+let cprVolumeReady: Promise<void> = Promise.resolve();
+// 볼륨 교체(시리즈 변경) 세대. setPanoVolume마다 증가하며, 이 값이 바뀌면
+// 그 전에 예약된 추출은 옛 볼륨 기준이므로 폐기한다(새 볼륨에 렌더 방지).
+let cprVolumeGeneration = 0;
 let panoView: PanoView;
 let panePanoView: PanoView;
 let gpuPano: GpuCprViewport | null = null;
 let gpuActive = false;
+// Cross-section(orthogonal/tangential) 렌더 상태.
+let curveSampler: CurveFrameSampler | null = null;
+let selectedU = 0.5; // panorama에서 선택된 curve 위치 (0..1, arc-length normalized)
+// Auto WL/WW: extract 후 데이터 분포에 기반해 WL/WW를 자동 계산.
+// 사용자가 슬라이더로 수동 조정하면 true가 되어 auto가 비활성화됨.
+// setPanoVolume(새 볼륨 로드) 시 false로 리셋.
+let userOverrodeWLWW = false;
 let workspace: HTMLElement;
 let regionTop: HTMLElement;
 let regionBottomLeft: HTMLElement;
@@ -115,11 +137,12 @@ export function initPanoWiring(): void {
   curveEditorView = new CurveEditorView();
   // full CBCT z + full 머리 깊이, max mode (치아/뼈 강조)
   focalTrough = new FocalTrough({ thickness: 15, mode: 'max' });
-  // ArchPresser: thickness=15mm (in-plane), pixelSize=0.3mm, mode='max'.
-  // depth range는 userZ 기반으로 setDepthRangeMm로 매번 갱신.
+  // CPR 엔진(공개 API) 기본 옵션: thickness=15mm, pixelSize=0.3mm, mode='mean'.
+  // 값은 요청별 옵션으로 전달되며, 여기서 초기값만 리셋한다.
   // mode='mean' — 'max'는 단일 bone voxel(3000+ HU)에 saturate해서 panorama가 모두
   // 255(흰색)로 칠해진 user report. mean은 ray 평균이라 다양한 강도가 살아남는다.
-  archPresser = new ArchPresser({ thickness: 15, pixelSize: 0.3, mode: 'mean' });
+  panoThicknessMm = 15;
+  panoMode = 'mean';
   panoView = new PanoView();
 
   curveEditorCtl.onStateChange(() => syncCurveEditorState());
@@ -130,31 +153,16 @@ export function initPanoWiring(): void {
       // renderModalPanoPreview는 무겁다(detectBestDepthRange + extract). Drag 중 pointermove가
       // 100Hz로 발화되면 매번 extract → 누적 1초+. rAF로 throttle하여 다음 frame에서
       // 한 번만 실행 (60fps 보장).
-      if (curve.points.length >= 2 && !panoPreviewQueued) {
-        panoPreviewQueued = true;
-        requestAnimationFrame(() => {
-          panoPreviewQueued = false;
-          renderModalPanoPreview();
-        });
-      }
+      queueModalPanoPreview();
     }
     syncCurveEditorState();
   });
 
-  // Try to enable GPU CPR (WebGL2). Fall back to existing CPU path otherwise.
-  if (supportsGpuCpr() && regionBottomLeft) {
-    gpuPano = new GpuCprViewport(regionBottomLeft, { sampleCount: 256, autoThickness: true });
-    const ok = gpuPano.init();
-    if (ok) {
-      // Wrap panoCanvas (used by CSS layout) — keep element for size ref but hide it
-      // since GPU viewport injects its own WebGL canvas on top.
-      panoCanvas.style.display = 'none';
-      gpuPano.resize();
-      gpuActive = true;
-    } else {
-      gpuPano = null;
-    }
-  }
+  // GPU CPR(WebGL2)는 메인/모달 파노라마 FOV를 다르게 만든다(수평 좌표를 arc-length 대신
+  // uniform-t로 샘플 + 캔버스 비율 무시 스트레치 + 초점단 두께 2배 불일치). CPU ArchPresser가
+  // modal preview와 동일한(정확한) 결과를 보장하므로 메인 파노라마는 CPU 경로로 고정한다.
+  gpuActive = false;
+  gpuPano = null;
 
   curveEditorView.mount({
     axial: axialCanvas,
@@ -167,6 +175,8 @@ export function initPanoWiring(): void {
   syncCurveEditorState();
   resizeCanvases();
   window.addEventListener('resize', resizeCanvases);
+  window.addEventListener('pagehide', disposePanoCpr, { once: true });
+  wirePanoPick();
 
   if (currentVolume) {
     syncModalFromVolume();
@@ -195,7 +205,15 @@ export function setPanoVolume(
   windowLevel = 500,
   windowWidth = 2500,
 ): void {
+  const cprVolume = volume ? toCprVolume(volume) : null;
+  if (cprVolume) validateVolume(cprVolume);
+  cancelQueuedModalPanoPreview();
   currentVolume = volume;
+  userOverrodeWLWW = false; // 새 볼륨 로드 → auto WL/WW 다시 활성화
+  // 볼륨(시리즈) 교체 → 이전 볼륨 기준으로 진행 중/대기 중인 추출을 무효화한다.
+  // 세대를 올려 옛 결과가 새 볼륨 위에 렌더되는 것을 막는다.
+  cprVolumeGeneration += 1;
+  cprController?.cancelPending();
   setSharedWlww(windowLevel, windowWidth);
   panoView.setWLWW(windowLevel, windowWidth);
   panePanoView.setWLWW(windowLevel, windowWidth);
@@ -211,6 +229,15 @@ export function setPanoVolume(
     const sp = volume.spacing;
     const headDepth = Math.max(dx * sp[0], dy * sp[1]);
     focalTrough.setThickness(headDepth);
+    // 볼륨 변경 → CPR 엔진에 setVolume. 직렬 체인으로 순서 보장.
+    // 컨트롤러도 함께 확보해둬야 이후 볼륨 교체 시 진행 중 추출을 취소할 수 있다.
+    cprVolumeReady = cprVolumeReady
+      .then(() => ensureCprController())
+      .then(() => ensureCprEngine())
+      .then((engine) => engine.setVolume(cprVolume!))
+      .catch((error) => {
+        console.error('pano-wiring: CPR setVolume failed', error);
+      });
   }
   if (gpuActive && gpuPano) {
     gpuPano.setVolume(volume);
@@ -321,6 +348,7 @@ function setupCurveEditor(): void {
   ceRedo.addEventListener('click', () => curveEditorCtl.redo());
   // Trough mode
   const onModeChange = () => {
+    panoMode = focalTrough.mode;
     if (gpuActive && gpuPano) {
       gpuPano.setProjection(focalTrough.mode);
     }
@@ -332,11 +360,12 @@ function setupCurveEditor(): void {
   ceModeMean.addEventListener('click', () => { focalTrough.setMode('mean'); onModeChange(); });
   updateTroughModeActive();
 
-  // WL/WW slider 변경 시 panorama에도 적용
+  // WL/WW slider 변경 시 panorama에도 적용 + auto WL/WW 비활성화
   window.addEventListener('wlww-changed', ((e: Event) => {
     const ev = e as CustomEvent<{ wl: number; ww: number }>;
     const wl = ev.detail?.wl ?? 0;
     const ww = ev.detail?.ww ?? 400;
+    userOverrodeWLWW = true; // 사용자 수동 조정 — auto WL/WW 중지
     applyWlwwToPano(wl, ww);
   }) as EventListener);
 
@@ -351,6 +380,7 @@ function setupCurveEditor(): void {
     curveEditorCtl.setActiveSlice(MPRPlane.Axial, v);
     modalAxialSliderVal.textContent = modalAxialSlider.value;
     renderModalAxialSlice();
+    queueModalPanoPreview();
   });
 }
 
@@ -362,6 +392,7 @@ function cancelCurveEditor(): void {
 function applyCurveEditor(): void {
   if (curveEditorCtl.curve.points.length < 2) return;
   curveEditorCtl.apply();
+  cancelQueuedModalPanoPreview();
   renderPanoFinal();
   if (curveEditorModal) curveEditorModal.hidden = true;
 }
@@ -424,6 +455,100 @@ function userCurveZ(curve: { points: ReadonlyArray<{ z: number }> }): number {
   return sum / curve.points.length;
 }
 
+function dentalDepthRangeMm(volume: VolumeData): [number, number] {
+  const depth = volume.dimensions[2];
+  const spacingZ = volume.spacing[2] || 1;
+  const lastSlice = depth - 1;
+  const editingSlice = Math.max(
+    0,
+    Math.min(lastSlice, curveEditorCtl.getActiveSlice(MPRPlane.Axial)),
+  );
+  const superiorSlice = Math.min(lastSlice, editingSlice + CPR_SUPERIOR_MARGIN_MM / spacingZ);
+
+  // CPR depth is inverted: 0mm starts at the superior end, while storage z=0 is the chin.
+  return [(lastSlice - superiorSlice) * spacingZ, depth * spacingZ];
+}
+
+function toCprVolume(volume: VolumeData): CprVolume {
+  const view = volume as VolumeData & { byteOffset?: number; dataLength?: number };
+  const byteOffset = view.byteOffset ?? 0;
+  const data = volume.dataType === 'int16'
+    ? new Int16Array(volume.buffer, byteOffset, view.dataLength)
+    : new Uint16Array(volume.buffer, byteOffset, view.dataLength);
+  return { data, dimensions: volume.dimensions, spacing: volume.spacing };
+}
+
+function ensureCprEngine(): Promise<CprEngine> {
+  if (!cprEnginePromise) {
+    cprEnginePromise = createCprEngine({ backend: 'auto' });
+  }
+  return cprEnginePromise;
+}
+
+function ensureCprController(): Promise<CprRequestController> {
+  if (!cprControllerPromise) {
+    cprControllerPromise = ensureCprEngine().then((engine) => {
+      const controller = new CprRequestController({
+        engine,
+        onResult: applyCprResult,
+        onError: (error) => console.error('pano-wiring: CPR extract failed', error),
+      });
+      cprController = controller;
+      return controller;
+    });
+  }
+  return cprControllerPromise;
+}
+
+function scheduleCprExtract(request: CprRequest): void {
+  // setVolume 완료 후에만 extract가 돌도록 직렬 체인을 먼저 기다린다.
+  // 예약 시점의 볼륨 세대를 캡처해, 대기 중에 볼륨이 교체되면 옛 요청을 폐기한다.
+  const generation = cprVolumeGeneration;
+  void cprVolumeReady
+    .then(() => ensureCprController())
+    .then((controller) => {
+      if (generation !== cprVolumeGeneration) return;
+      controller.schedule(request);
+    })
+    .catch((error) => {
+      console.error('pano-wiring: CPR schedule failed', error);
+    });
+}
+
+function applyCprResult(result: CprResult): void {
+  const { data, width, height } = result;
+
+  // WL/WW: 사용자가 수동 조정하지 않았으면 데이터 분포 기반 auto.
+  if (!userOverrodeWLWW) {
+    const auto = computeAutoWLWW(data);
+    panoView.setWLWW(auto.wl, auto.ww);
+    panePanoView.setWLWW(auto.wl, auto.ww);
+  }
+
+  panoView.setIntensityMap(data, width, height);
+  panePanoView.setIntensityMap(data, width, height);
+  const ctx = panoCanvas.getContext('2d');
+  if (ctx) panoView.render(panoCanvas);
+  const modalCtx = modalPanoCanvas ? modalPanoCanvas.getContext('2d') : null;
+  if (modalCtx) panePanoView.render(modalPanoCanvas);
+}
+
+function disposePanoCpr(): void {
+  cprController?.dispose();
+  cprController = null;
+  cprControllerPromise = null;
+  // 진행 중인 setVolume 이후에 엔진을 정리한다. 체인 콜백은 마이크로태스크에서
+  // 모듈 변수를 읽으므로, 널 대입 전에 반드시 로컬로 캡처해야 한다.
+  const enginePromise = cprEnginePromise;
+  cprEnginePromise = null;
+  cprVolumeReady = cprVolumeReady
+    .then(() => enginePromise)
+    .then((engine) => {
+      engine?.dispose();
+    })
+    .catch(() => { /* teardown 중 오류는 무시 */ });
+}
+
 function renderPanoPreview(): void {
   if (!currentVolume) return;
   if (curveEditorCtl.curve.points.length < 2) return;
@@ -447,21 +572,140 @@ function renderPanoPreview(): void {
 function renderPanoFinal(): void {
   if (!currentVolume) return;
   if (curveEditorCtl.curve.points.length < 2) return;
-  void gpuPano; // suppress unused warning
-  // ArchPresser — developable surface panorama. modal preview와 동일한 알고리즘
-  // + 동일 옵션으로 결과 일치 보장. depth range는 user curve z ±15mm로 상악동 + 신경관 포함.
-  const userZ = userCurveZ(curveEditorCtl.curve);
-  const spacingZ = currentVolume.spacing[2] || 1;
-  const volumeDepthMm = currentVolume.dimensions[2] * spacingZ;
-  const userZmm = userZ * spacingZ;
-  archPresser.setDepthRangeMm(
-    Math.max(0, userZmm - 15),
-    Math.min(volumeDepthMm, userZmm + 15),
-  );
-  const { data, width, height } = archPresser.extract(curveEditorCtl.curve, currentVolume);
-  panoView.setIntensityMap(data, width, height);
-  const ctx = panoCanvas.getContext('2d');
-  if (ctx) panoView.render(panoCanvas);
+  const curve = curveEditorCtl.curve;
+  const depthRangeMm = dentalDepthRangeMm(currentVolume);
+
+  // cross-section(orthogonal/tangential)용 curve frame 샘플러 갱신.
+  // 추출 결과와 무관하게 curve에만 의존하므로 즉시 갱신한다.
+  curveSampler = new CurveFrameSampler(curve, 256);
+  renderCrossSections();
+
+  scheduleCprExtract({
+    curve,
+    quality: 'final',
+    options: {
+      thickness: panoThicknessMm,
+      pixelSize: 0.3, // 풀해상도
+      mode: panoMode,
+      depthRangeMm,
+    },
+  });
+}
+
+/** HU → 0..255 그레이스케일 (dental bone window 호환) */
+function applyWindowForCrossSection(value: number, wl: number, ww: number): number {
+  if (ww <= 0) return 128;
+  const low = wl - ww / 2;
+  const high = wl + ww / 2;
+  if (value <= low) return 0;
+  if (value >= high) return 255;
+  return Math.round(((value - low) / ww) * 255);
+}
+
+function renderCrossSectionCanvas(
+  canvas: HTMLCanvasElement,
+  spec: ReturnType<typeof buildCrossSectionSpec>,
+  wl: number,
+  ww: number,
+): void {
+  if (!currentVolume) return;
+  const data = extractCrossSection(currentVolume, spec);
+  const w = spec.outWidth;
+  const h = spec.outHeight;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const img = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    const srcRow = (h - 1 - y) * w;
+    const dstRow = y * w * 4;
+    for (let x = 0; x < w; x++) {
+      const v = applyWindowForCrossSection(data[srcRow + x], wl, ww);
+      const d = dstRow + x * 4;
+      img.data[d] = v;
+      img.data[d + 1] = v;
+      img.data[d + 2] = v;
+      img.data[d + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function renderCrossSections(): void {
+  if (!currentVolume || !curveSampler) {
+    for (const c of [coronalCanvas, sagittalCanvas]) {
+      const ctx = c?.getContext('2d');
+      ctx?.clearRect(0, 0, c.width, c.height);
+    }
+    return;
+  }
+  const spacing = currentVolume.spacing;
+  const sp0 = spacing[0] || 1;
+  const sp1 = spacing[1] || 1;
+  const sp2 = spacing[2] || 1;
+  const avgInPlane = (sp0 + sp1) / 2;
+  const frame = curveSampler.frameAtU(selectedU);
+  const wlwwApplier = getWlwwApplier();
+  const wl = wlwwApplier.windowLevel;
+  const ww = wlwwApplier.windowWidth;
+
+  // orthogonal/tangential 단면: 원본 voxel 해상도(1px ≈ 1voxel)로 추출해
+  // 셀 표시 시 해상도가 떨어지지 않게 한다. 비등방 spacing은 세로 픽셀 수로 보정해
+  // 실제 mm 비율이 유지되도록 한다. (표시는 .mpr의 object-fit:contain이 중앙 정렬)
+  const orthoHalfVox = currentVolume.dimensions[0] / 2; // 협설(가로) 전체
+  const tangHalfVox = currentVolume.dimensions[1] / 2;  // 접선(가로) 전체
+  const zHalfVox = currentVolume.dimensions[2] / 2;     // 상하(z) 전체
+
+  const makeSpec = (
+    kind: 'orthogonal' | 'tangential',
+    halfU: number,
+  ) => {
+    const outW = Math.max(32, Math.round(halfU * 2));
+    const outH = Math.max(32, Math.round(zHalfVox * 2 * (sp2 / avgInPlane)));
+    return buildCrossSectionSpec(kind, frame, halfU, zHalfVox, outW, outH);
+  };
+
+  const orthoSpec = makeSpec('orthogonal', orthoHalfVox);
+  const tangSpec = makeSpec('tangential', tangHalfVox);
+  renderCrossSectionCanvas(coronalCanvas, orthoSpec, wl, ww);
+  renderCrossSectionCanvas(sagittalCanvas, tangSpec, wl, ww);
+}
+
+/** panorama 클릭/드래그 → curve 위치(u) 선택 → cross-section 갱신 */
+function wirePanoPick(): void {
+  let down = false;
+  const update = (e: PointerEvent): void => {
+    if (!currentVolume || !curveSampler) return;
+    const rect = regionBottomLeft.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    selectedU = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    renderCrossSections();
+    // 3D 볼륨의 orthogonal/tangential 단면도 실시간 갱신
+    window.dispatchEvent(new CustomEvent(PANORAMA_PICK_EVENT));
+  };
+
+  // 휠: focal trough 두께 조절 (밝기/대비 초기화 방지)
+  regionBottomLeft.addEventListener('wheel', (e) => {
+    if (!currentVolume || curveEditorCtl.curve.points.length < 2) return;
+    e.preventDefault();
+    const step = 0.5;
+    const nt = Math.max(2, Math.min(40, panoThicknessMm + (e.deltaY < 0 ? step : -step)));
+    panoThicknessMm = nt;
+    focalTrough.setThickness(nt);
+    userOverrodeWLWW = true; // auto WL/WW 재계산 방지
+    renderPanoFinal();
+  }, { passive: false });
+
+  regionBottomLeft.addEventListener('pointerdown', (e) => {
+    down = true;
+    update(e);
+    try { regionBottomLeft.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+  });
+  regionBottomLeft.addEventListener('pointermove', (e) => {
+    if (down) update(e);
+  });
+  window.addEventListener('pointerup', () => { down = false; });
 }
 
 function resizeCanvases(): void {
@@ -477,8 +721,6 @@ function resizeCanvases(): void {
   const cellW = Math.max(64, Math.floor(br.width / 3));
   const cellH = Math.max(64, Math.floor(br.height));
   setSize(axialCanvas, cellW, cellH);
-  setSize(coronalCanvas, cellW, cellH);
-  setSize(sagittalCanvas, cellW, cellH);
   const tr = regionTop.getBoundingClientRect();
   setSize(document.getElementById('3d-canvas') as HTMLCanvasElement, Math.max(64, Math.floor(tr.width)), Math.max(64, Math.floor(tr.height)));
   if (curveEditorCtl.curve.points.length > 0) {
@@ -511,6 +753,15 @@ function resizeCanvases(): void {
   // main.ts의 renderAll()이 다시 renderSlice를 호출하도록 알려준다.
   // (휠/슬라이더 입력 외에는 redraw 트리거가 없는 문제를 해결)
   window.dispatchEvent(new CustomEvent(LAYOUT_RESIZED_EVENT));
+
+  // 파노라마도 위 setSize로 비트맵이 초기화되므로, 캐시된 데이터로 즉시 다시 그린다.
+  redrawPano();
+}
+
+/** 리사이즈 후 캐시된 파노라마 데이터를 다시 그린다 (재추출 없이 가볍게). */
+function redrawPano(): void {
+  if (panoView.getDataSize().width > 0) panoView.render(panoCanvas);
+  if (panePanoView.getDataSize().width > 0 && modalPanoCanvas) panePanoView.render(modalPanoCanvas);
 }
 
 export { PanoramicCurve };
@@ -523,12 +774,34 @@ let modalWlwwListenerBound = false;
 // drag 끝나면 풀해상도(0.5)로 다시 그린다 — drag 중 60fps 유지 + 끝에 고품질 확정.
 let isCurveDragging = false;
 // rAF throttle: 연속된 onCurveChange 호출은 다음 frame에서 한 번만 renderModalPanoPreview 실행.
-let panoPreviewQueued = false;
+let panoPreviewQueuedGeneration: number | null = null;
+let panoPreviewQueueToken = 0;
+
+function cancelQueuedModalPanoPreview(): void {
+  panoPreviewQueuedGeneration = null;
+  panoPreviewQueueToken += 1;
+}
+
+function queueModalPanoPreview(): void {
+  if (curveEditorCtl.curve.points.length < 2) return;
+  const generation = cprVolumeGeneration;
+  if (panoPreviewQueuedGeneration === generation) return;
+  panoPreviewQueuedGeneration = generation;
+  const token = ++panoPreviewQueueToken;
+  requestAnimationFrame(() => {
+    if (token !== panoPreviewQueueToken) return;
+    panoPreviewQueuedGeneration = null;
+    if (generation !== cprVolumeGeneration) return;
+    renderModalPanoPreview();
+  });
+}
 
 function renderModalAxialSlice(): void {
   if (!currentVolume) return;
   const z = curveEditorCtl.getActiveSlice(MPRPlane.Axial);
   renderMprSlice(modalAxialCanvas, MPRPlane.Axial, z, currentVolume!);
+  // 슬라이스 재렌더 후 그려둔 curve 오버레이(컨트롤 포인트/스플라인)를 다시 그린다.
+  curveEditorView.drawAll();
 }
 
 function overlayCurveOnModalAxial(): void {
@@ -564,6 +837,22 @@ function wireModalAxialDrag(): void {
   let dragged = false;
   let startX = 0;
   let startY = 0;
+
+  // 휠: axial 슬라이스 이동
+  modalAxialCanvas.addEventListener('wheel', (e: WheelEvent) => {
+    if (!currentVolume) return;
+    e.preventDefault();
+    const max = +modalAxialSlider.max;
+    const cur = +modalAxialSlider.value;
+    const next = Math.max(0, Math.min(max, cur + (e.deltaY > 0 ? 1 : -1)));
+    if (next !== cur) {
+      modalAxialSlider.value = String(next);
+      modalAxialSliderVal.textContent = String(next);
+      curveEditorCtl.setActiveSlice(MPRPlane.Axial, next);
+      renderModalAxialSlice();
+      queueModalPanoPreview();
+    }
+  }, { passive: false });
 
   modalAxialCanvas.addEventListener('pointerdown', (event) => {
     if (!currentVolume || event.button !== 0) return;
@@ -603,7 +892,8 @@ function wireModalAxialDrag(): void {
     dragIndex = -1;
     if (isCurveDragging) {
       isCurveDragging = false;
-      // drag 끝 → 풀해상도 pano preview 즉시 갱신 (rAF queue가 이미 있으면 그게 처리).
+      cancelQueuedModalPanoPreview();
+      // drag 끝 → 대기 중인 저해상도 frame을 버리고 풀해상도로 즉시 갱신.
       if (curveEditorCtl.curve.points.length >= 2) renderModalPanoPreview();
     }
     dragged = false;
@@ -612,6 +902,11 @@ function wireModalAxialDrag(): void {
   modalAxialCanvas.addEventListener('pointercancel', () => {
     suppressNextModalClick = true;
     dragIndex = -1;
+    if (isCurveDragging) {
+      isCurveDragging = false;
+      cancelQueuedModalPanoPreview();
+      if (curveEditorCtl.curve.points.length >= 2) renderModalPanoPreview();
+    }
     dragged = false;
   });
 }
@@ -668,23 +963,20 @@ function renderModalPanoPreview(): void {
     gpuPano.setCurve(curveEditorCtl.curve);
     // NOTE: modal 안에는 GPU canvas가 없으므로 아래 CPU path도 항상 실행.
   }
-  // ArchPresser — 메인과 같은 developable surface panorama 알고리즘. 결과 일치.
+  // 공개 CPR 엔진 — 메인과 동일한 developable surface panorama 알고리즘. 결과 일치.
   // Drag 중에는 저해상도(pixelSize=0.6), 끝나면 풀해상도(0.3). pointerup에서 즉시 갱신.
-  const userZ = userCurveZ(curveEditorCtl.curve);
-  const spacingZ = currentVolume.spacing[2] || 1;
-  const volumeDepthMm = currentVolume.dimensions[2] * spacingZ;
-  const userZmm = userZ * spacingZ;
-  archPresser.setDepthRangeMm(
-    Math.max(0, userZmm - 15),
-    Math.min(volumeDepthMm, userZmm + 15),
-  );
-  archPresser.setPixelSize(isCurveDragging ? 0.6 : 0.3);
-  const { data, width, height } = archPresser.extract(curveEditorCtl.curve, currentVolume);
-  panePanoView.setIntensityMap(data, width, height);
-  panoView.setIntensityMap(data, width, height);
-  const ctx = modalPanoCanvas.getContext('2d');
-  if (ctx) panePanoView.render(modalPanoCanvas);
-  panoView.render(panoCanvas);
+  // 편집 axial 평면 위 50mm부터 턱까지로 제한해 불필요한 superior Z 계산을 피한다.
+  const depthRangeMm = dentalDepthRangeMm(currentVolume);
+  scheduleCprExtract({
+    curve: curveEditorCtl.curve,
+    quality: isCurveDragging ? 'preview' : 'final',
+    options: {
+      thickness: panoThicknessMm,
+      pixelSize: isCurveDragging ? 0.6 : 0.3,
+      mode: panoMode,
+      depthRangeMm,
+    },
+  });
 }
 
 function updateTroughModeActive(): void {
@@ -692,6 +984,41 @@ function updateTroughModeActive(): void {
   for (const [btn, m] of [[ceModeMin, 'min'], [ceModeMax, 'max'], [ceModeMean, 'mean']] as const) {
     btn.classList.toggle('active', mode === m);
   }
+}
+
+/**
+ * 3D 볼륨에 orthogonal/tangential 단면을 그리기 위한 curve 프레임을 반환한다.
+ * main.ts의 3D 렌더러가 호출. curve가 적용되기 전이면 null.
+ * 좌표는 storage voxel 기준.
+ */
+export interface Pano3DFrame {
+  center: { x: number; y: number; z: number };
+  normal: { x: number; y: number; z: number };   // 협설 (tangential 평면의 법선)
+  tangent: { x: number; y: number; z: number };  // 접선 (orthogonal 평면의 법선)
+}
+
+export function getCurveFrameFor3D(): Pano3DFrame | null {
+  if (!currentVolume || !curveSampler) return null;
+  const f = curveSampler.frameAtU(selectedU);
+  return {
+    center: { x: f.position.x, y: f.position.y, z: f.position.z },
+    normal: { x: f.normal.x, y: f.normal.y, z: f.normal.z },
+    tangent: { x: f.tangent.x, y: f.tangent.y, z: f.tangent.z },
+  };
+}
+
+/** 3D 볼륨에 파노라마 곡면(curve를 z로 extrude)을 그리기 위한 curve 샘플 위치. */
+export function getCurveSamplesFor3D(maxCount = 48): { x: number; y: number; z: number }[] | null {
+  if (!currentVolume || !curveSampler) return null;
+  const n = curveSampler.frameCount;
+  const count = Math.min(maxCount, n);
+  const stride = count === 0 ? 0 : (n - 1) / (count - 1);
+  const out: { x: number; y: number; z: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const f = curveSampler.frameAt(Math.round(i * stride));
+    out.push({ x: f.position.x, y: f.position.y, z: f.position.z });
+  }
+  return out;
 }
 
 // Expose debug hooks
@@ -722,5 +1049,16 @@ function exposePanoDebug(): void {
     },
     setMode: (m: 'min' | 'max' | 'mean') => { focalTrough.setMode(m); renderPanoFinal(); return m; },
     setThickness: (mm: number) => { focalTrough.setThickness(mm); renderPanoFinal(); return mm; },
+    getAutoWLWW: () => {
+      const data = (panoView as unknown as { _data: Float32Array })._data;
+      if (!data || data.length === 0) return { ok: false };
+      return { ok: true, ...computeAutoWLWW(data) };
+    },
+    isAutoWLWW: () => !userOverrodeWLWW,
+    resetAutoWLWW: () => {
+      userOverrodeWLWW = false;
+      renderPanoFinal();
+      return { ok: true };
+    },
   };
 }

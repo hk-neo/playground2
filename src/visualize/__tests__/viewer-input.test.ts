@@ -21,7 +21,8 @@ describe('viewer input', () => {
     expect(getVolumeCameraTarget()).toEqual({ x: 0, y: 0, z: 0 });
   });
 
-  it('uses the voxel-grid ratio for the 3D box scale', () => {
-    expect(getVolumeModelScale(volume)).toEqual([1 / 3, 2 / 3, 1]);
+  it('uses the voxel dimensions × spacing (mm half-extent)', () => {
+    // dims [1,2,3], spacing [2,3,4] → mm [2, 6, 12] → 반폭 [1, 3, 6]
+    expect(getVolumeModelScale(volume)).toEqual([1, 3, 6]);
   });
 });

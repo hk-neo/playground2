@@ -74,13 +74,30 @@ describe('PanoramicCurve', () => {
     });
   });
 
-  describe('sampling (Catmull-Rom)', () => {
+  describe('sampling (natural cubic spline)', () => {
     const linePoints: Vec3[] = [
       { x: 0, y: 0, z: 0 },
       { x: 1, y: 0, z: 0 },
       { x: 2, y: 0, z: 0 },
       { x: 3, y: 0, z: 0 },
     ];
+
+    it('passes exactly through every control point (interpolation)', () => {
+      const pts: Vec3[] = [
+        { x: 0, y: 0, z: 0 },
+        { x: 1, y: 2, z: 0 },
+        { x: 3, y: 1, z: 0 },
+        { x: 5, y: 3, z: 0 },
+      ];
+      const c = new PanoramicCurve({ points: pts, closed: false });
+      const n = pts.length;
+      for (let i = 0; i < n; i++) {
+        const p = c.sample(i / (n - 1));
+        expect(p.x).toBeCloseTo(pts[i].x, 5);
+        expect(p.y).toBeCloseTo(pts[i].y, 5);
+        expect(p.z).toBeCloseTo(pts[i].z, 5);
+      }
+    });
 
     it('sample(0) ≈ first point, sample(1) ≈ last point', () => {
       const c = new PanoramicCurve({ points: linePoints, closed: false });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { buildVolumeTexture, disposeVolumeTexture } from '../volume-texture';
+import { buildVolumeTexture, disposeVolumeTexture, float32ToHalf16 } from '../volume-texture';
 import type { VolumeData } from '../../../shared/types/volume';
 
 function makeTestVolume(
@@ -95,5 +95,28 @@ describe('volume-texture (downsample)', () => {
     const data = r.texture.image.data as Uint8Array;
     expect(data.length).toBe(128 * 128 * 128);
     disposeVolumeTexture(r);
+  });
+});
+
+describe('volume-texture (half-float)', () => {
+  it('uses half-float when float32 is over budget but half-float fits', () => {
+    // 16³ voxels: float32 = 16 KB, half = 8 KB.
+    const vol = makeTestVolume([16, 16, 16]);
+    const r = buildVolumeTexture(vol, { budgetBytes: 12 * 1024 });
+    expect(r.format).toBe('half-float');
+    expect(r.downsampleFactor).toBe(1);
+    expect(r.dimensions).toEqual([16, 16, 16]);
+    expect(r.texture.type).toBe(THREE.HalfFloatType);
+    const data = r.texture.image.data as Uint16Array;
+    expect(data.length).toBe(16 * 16 * 16);
+    disposeVolumeTexture(r);
+  });
+
+  it('converts float32 to half precision correctly', () => {
+    expect(float32ToHalf16(0)).toBe(0x0000);
+    expect(float32ToHalf16(1.0)).toBe(0x3c00);
+    expect(float32ToHalf16(-1.0)).toBe(0xbc00);
+    expect(float32ToHalf16(1000.0)).toBe(0x63d0);
+    expect(float32ToHalf16(-1000.0)).toBe(0xe3d0);
   });
 });

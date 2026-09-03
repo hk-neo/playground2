@@ -1,6 +1,12 @@
 export { PanoramicCurve, createEllipseCurve, createArchCurve } from './panoramic-curve';
 export type { EllipsePresetOptions, ArchPresetOptions } from './panoramic-curve';
 
+export { CurveFrameSampler, computeFrameAxes } from './curve-frame';
+export type { CurveFrame } from './curve-frame';
+
+export { extractCrossSection, buildCrossSectionSpec } from './cross-section';
+export type { CrossSectionSpec, CrossSectionKind } from './cross-section';
+
 export { FocalTrough } from './focal-trough';
 export type { FocalTroughOptions } from './focal-trough';
 

@@ -112,30 +112,30 @@ describe('ArchPresser', () => {
       c.addPoint({ x: 2, y: 5, z: 0 });
       c.addPoint({ x: 7, y: 5, z: 0 });
       const r = ap.extract(c, v);
-      // Top row (v=0) should be smaller than bottom row (v=hp-1) since value = z * 100
-      // mean of first row vs last row
+      // z-inversion: v=0 maps to high z (dz-1), v=hp-1 maps to low z (0).
+      // value = z * 100, so top row (v=0, high z) > bottom row (v=hp-1, low z).
       const wp = r.width;
       const hp = r.height;
       let topSum = 0, botSum = 0;
       for (let u = 0; u < wp; u++) { topSum += r.data[0 * wp + u]; botSum += r.data[(hp - 1) * wp + u]; }
       const topMean = topSum / wp;
       const botMean = botSum / wp;
-      expect(botMean).toBeGreaterThan(topMean);
+      expect(topMean).toBeGreaterThan(botMean);
     });
 
-    it('z-gradient: sum at (u, v) is monotonically increasing with v', () => {
+    it('z-gradient: sum at (u, v) is monotonically decreasing with v (z-inverted)', () => {
       const v = makeZGradientVolume();
       const c = new PanoramicCurve();
       c.addPoint({ x: 2, y: 5, z: 0 });
       c.addPoint({ x: 7, y: 5, z: 0 });
       const r = ap.extract(c, v);
-      // pick a column and verify monotone increase
+      // z-inversion: as v increases, z decreases, so values decrease
       const wp = r.width;
       const u = Math.floor(wp / 2);
-      let prev = -Infinity;
+      let prev = Infinity;
       for (let v2 = 0; v2 < r.height; v2++) {
         const val = r.data[v2 * wp + u];
-        expect(val).toBeGreaterThanOrEqual(prev - 0.01);
+        expect(val).toBeLessThanOrEqual(prev + 0.01);
         prev = val;
       }
     });

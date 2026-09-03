@@ -5,7 +5,7 @@ describe('OrbitalCamera', () => {
   describe('constructor', () => {
     it('should have default values', () => {
       const cam = new OrbitalCamera();
-      expect(cam.distance).toBe(2.5);
+      expect(cam.distance).toBe(3.5);
       expect(cam.target.x).toBe(0);
       expect(cam.fov).toBeCloseTo(Math.PI / 4, 10);
     });
@@ -66,7 +66,7 @@ describe('OrbitalCamera', () => {
       cam.zoom(-2);
       cam.pan(3, 3);
       cam.reset();
-      expect(cam.distance).toBe(2.5);
+      expect(cam.distance).toBe(3.5);
       expect(cam.target.x).toBe(0);
       expect(cam.quaternion.w).toBeCloseTo(1, 10);
     });

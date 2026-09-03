@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { DicomTagReader } from '../tag-reader';
 import { DicomFileLoader } from '../file-loader';
 import { TransferSyntaxResolver } from '../transfer-syntax-resolver';
 import { PixelDataDecoder } from '../pixel-data-decoder';
 
-// DICOM 샘플 경로: 환경변수 DICOM_SAMPLE_DIR 우선, 없으면 기존 기본 경로
+// DICOM 샘플 경로: 환경변수 DICOM_SAMPLE_FILE 우선, 없으면 기존 기본 경로
 const SAMPLE_FILE = process.env.DICOM_SAMPLE_FILE
   || join(process.env.HOME!, 'Projects', '정성진ct', '10001.dcm');
 
-describe('DICOM Integration (real file)', () => {
+describe.skipIf(!existsSync(SAMPLE_FILE))('DICOM Integration (real file)', () => {
   it('should parse a real DICOM file end-to-end', () => {
     const nodeBuffer = readFileSync(SAMPLE_FILE);
     const buffer = nodeBuffer.buffer.slice(

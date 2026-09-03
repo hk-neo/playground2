@@ -5,17 +5,15 @@
  * "Texture total allocation size is too large" on WebGL2 when uploading
  * raw CBCT (e.g. 666^3 Int16 = 295 MB → Float32 = 590 MB).
  *
- * Strategy:
- *   1. Try Float32 (R32F) at original resolution.
- *   2. If `voxels * 4 bytes` exceeds the budget, downsample uniformly
- *      to the largest cube that fits. Average-pool each voxel block
- *      down to a single value (preserves HU mean of the block).
- *   3. The downsampled extent is also reported back so the shader can
- *      re-scale UVs correctly. We keep the original volume dims for
- *      accurate world coordinates.
+ * Strategies (in order):
+ *   1. Float32 (R32F) at original resolution (lossless HU).
+ *   2. Half-float (R16F) at original resolution (int16 HU, 2x less memory,
+ *      ~1 HU precision for the CBCT range) — preferred fallback.
+ *   3. Float32 with uniform mean-pool downsampling.
+ *   4. Uint8 at original resolution (normalised 0..255, lossy).
  *
- * For a 666-cubed volume at 128 MB budget, Float32 budget allows up to
- * ~32M voxels (32M*4 = 128 MB). 320^3 = 32.7M, so we downsample 666→333.
+ * The downsampled extent is reported so the shader can re-scale UVs. We keep
+ * the original volume dims for accurate world coordinates.
  */
 import * as THREE from 'three';
 import type { VolumeData } from '../../shared/types/volume';
@@ -34,8 +32,8 @@ export interface VolumeTextureResult {
   dimensions: [number, number, number];
   /** Original voxel dims from VolumeData (used for world coords). */
   sourceDimensions: [number, number, number];
-  /** DOWNSAMPLE: 'float32' preserves raw HU; 'uint8' stores normalised 0..255. */
-  format: 'float32' | 'uint8';
+  /** 'float32' preserves raw HU; 'half-float' preserves HU (~1 precision); 'uint8' stores normalised 0..255. */
+  format: 'float32' | 'half-float' | 'uint8';
   /** Voxel block size used for downsampling (1 = no downsample). */
   downsampleFactor: number;
 }
@@ -44,6 +42,36 @@ function getVoxelView(volume: VolumeData): Int16Array | Uint16Array {
   return volume.dataType === 'int16'
     ? new Int16Array(volume.buffer)
     : new Uint16Array(volume.buffer);
+}
+
+/** float32 → binary16(half-float) bit pattern (rtne). */
+export function float32ToHalf16(f: number): number {
+  const buf = new ArrayBuffer(4);
+  new Float32Array(buf)[0] = f;
+  const x = new Uint32Array(buf)[0];
+  const sign = (x >>> 16) & 0x8000;
+  let exp = ((x >>> 23) & 0xff) - 127 + 15;
+  let mant = x & 0x7fffff;
+  if (((x >>> 23) & 0xff) === 0xff) {
+    return sign | 0x7c00 | (mant ? 0x0200 : 0); // Inf/NaN (int16 입력엔 무관)
+  }
+  if (((x >>> 23) & 0xff) === 0) return sign; // zero/denormal → 0
+  if (exp >= 31) return sign | 0x7c00;         // overflow → Inf
+  if (exp <= 0) return sign;                    // underflow → 0
+  mant += 0x1000; // round bit
+  if (mant & 0x800000) {
+    mant = 0;
+    exp++;
+    if (exp >= 31) return sign | 0x7c00;
+  }
+  return (sign | (exp << 10) | (mant >>> 13)) >>> 0;
+}
+
+/** int16/uint16 voxel values → half-float bit patterns (Uint16Array). */
+function toHalfArray(view: Int16Array | Uint16Array): Uint16Array {
+  const out = new Uint16Array(view.length);
+  for (let i = 0; i < view.length; i++) out[i] = float32ToHalf16(view[i]);
+  return out;
 }
 
 /** Downsample a 1D voxel buffer by an integer factor using mean pooling. */
@@ -56,8 +84,6 @@ function downsampleMean(
   const dy = Math.max(1, Math.floor(sy / factor));
   const dz = Math.max(1, Math.floor(sz / factor));
   const out = new Float32Array(dx * dy * dz);
-  // Iterate one block at a time; sum voxels then divide by block size.
-  const blockVoxels = factor * factor * factor;
   for (let bz = 0; bz < dz; bz++) {
     const zStart = bz * factor;
     const zEnd = Math.min(sz, zStart + factor);
@@ -99,20 +125,19 @@ export function buildVolumeTexture(
   const [sx, sy, sz] = volume.dimensions;
   const view = getVoxelView(volume);
   const budget = opts.budgetBytes ?? DEFAULT_BUDGET_BYTES;
+  const voxels = sx * sy * sz;
 
-  // Decide format and downsample factor:
-  //   - If Float32 raw size ≤ budget → use float32, factor=1.
-  //   - Else while factor ≤ maxFactor and projected dims ≥ MIN_AXIS:
-  //       try doubling factor.
-  //   - Else (dims dropped too small, or factor exhausted):
-  //       fall back to Uint8 at original resolution.
-  let chosenFormat: 'float32' | 'uint8' = 'float32';
+  // 형식/다운샘플 결정 (메모리 예산 기반).
+  let chosenFormat: 'float32' | 'half-float' | 'uint8';
   let factor = 1;
-  const rawBytes = sx * sy * sz * 4; // Float32 path
-  if (rawBytes <= budget) {
-    // No downsample needed.
+
+  if (voxels * 4 <= budget) {
+    chosenFormat = 'float32';
+  } else if (voxels * 2 <= budget) {
+    chosenFormat = 'half-float';
   } else {
-    // Try downsampling.
+    // 다운샘플 시도 (float32 유지). MIN_AXIS 보존.
+    chosenFormat = 'float32';
     let nextFactor = 2;
     let valid = true;
     while (nextFactor * 4 * Math.floor(sx / nextFactor) * Math.floor(sy / nextFactor) * Math.floor(sz / nextFactor) > budget) {
@@ -131,49 +156,41 @@ export function buildVolumeTexture(
       chosenFormat = 'uint8';
     }
   }
-  let work: Float32Array;
+
+  let data: Float32Array | Uint16Array | Uint8Array;
+  let type: THREE.TextureDataType;
+  const format: THREE.PixelFormat = THREE.RedFormat;
   let dx = sx, dy = sy, dz = sz;
 
   if (chosenFormat === 'float32') {
     if (factor === 1) {
-      work = copyToFloat32(view);
-      dx = sx; dy = sy; dz = sz;
+      data = copyToFloat32(view);
     } else {
       const full = copyToFloat32(view);
       const ds = downsampleMean(full, sx, sy, sz, factor);
-      work = ds.data;
+      data = ds.data;
       dx = ds.dx; dy = ds.dy; dz = ds.dz;
     }
-  } else {
-    // Uint8 path: keep full resolution but normalise HU to [0, 255].
-    work = copyToFloat32(view);
-    dx = sx; dy = sy; dz = sz;
-    factor = 1;
-  }
-
-  // Convert Float32 work to target typed array.
-  let data: Float32Array | Uint8Array;
-  let type: THREE.TextureDataType;
-  let format: THREE.PixelFormat;
-  if (chosenFormat === 'float32') {
-    data = work;
     type = THREE.FloatType;
-    format = THREE.RedFormat;
+  } else if (chosenFormat === 'half-float') {
+    data = toHalfArray(view);
+    type = THREE.HalfFloatType;
+    factor = 1;
   } else {
-    // Normalize HU -> 0..255 over an empirical DICOM diagnostic range.
-    // Bone ~+1000, soft tissue ~+50, fat ~-100, air -1000.
+    // Uint8: 원해상도 유지, HU → 0..255 정규화.
+    const f32 = copyToFloat32(view);
     const HU_MIN = -1000;
     const HU_MAX = 3000;
     const range = HU_MAX - HU_MIN;
-    const u8 = new Uint8Array(work.length);
-    for (let i = 0; i < work.length; i++) {
-      let v = (work[i] - HU_MIN) / range;
+    const u8 = new Uint8Array(f32.length);
+    for (let i = 0; i < f32.length; i++) {
+      let v = (f32[i] - HU_MIN) / range;
       if (v < 0) v = 0; else if (v > 1) v = 1;
       u8[i] = Math.round(v * 255);
     }
     data = u8;
     type = THREE.UnsignedByteType;
-    format = THREE.RedFormat;
+    factor = 1;
   }
 
   const texture = new THREE.Data3DTexture(data as unknown as BufferSource, dx, dy, dz);

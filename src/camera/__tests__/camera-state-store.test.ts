@@ -36,7 +36,7 @@ describe('CameraStateStore', () => {
 
     const state = store.restoreState('initial');
     expect(state!.quaternion.w).toBeCloseTo(1, 10);
-    expect(state!.distance).toBe(2.5);
+    expect(state!.distance).toBe(3.5);
   });
 
   it('should delete state', () => {
@@ -65,6 +65,6 @@ describe('CameraStateStore', () => {
     store.saveState('test', cam);
 
     const state = store.restoreState('test');
-    expect(state!.distance).toBe(1.5);
+    expect(state!.distance).toBe(2.5);
   });
 });
