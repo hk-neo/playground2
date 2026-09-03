@@ -45,6 +45,7 @@ export interface CprResult {
 export interface CprEngineOptions {
   readonly backend?: CprBackend;
   readonly execution?: CprExecution;
+  readonly wasmUrl?: string | URL;
 }
 
 export interface SetVolumeOptions {

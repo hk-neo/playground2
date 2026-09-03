@@ -13,4 +13,5 @@ export type {
   NormalizedCprExtractOptions,
   SetVolumeOptions,
 } from './types';
+export { createCprEngine } from './engine';
 export { normalizeExtractOptions, validateCurve, validateVolume } from './validation';
