@@ -4,6 +4,7 @@ node_modules/
 # Build
 dist/
 .worktrees/
+src/cpr/generated/
 
 # AutoDevAgent
 AutoDevAgent
