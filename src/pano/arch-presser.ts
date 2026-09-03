@@ -22,7 +22,6 @@
  */
 import type { VolumeData } from '../shared/types/volume';
 import type { Vec3 } from '../shared/types/core';
-import type { IPanoramicCurve } from '../shared/interfaces/pano';
 
 const DEFAULT_SAMPLE_COUNT = 512; // arc length 계산용 curve resample 수
 const DEFAULT_THICKNESS = 20.0;   // mm
@@ -46,6 +45,15 @@ export interface ArchPresserResult {
   height: number;  // depth 방향 (panorama 세로)
 }
 
+interface CurveSampler {
+  sample(t: number): Vec3;
+}
+
+interface VolumeDataView extends VolumeData {
+  byteOffset?: number;
+  dataLength?: number;
+}
+
 // ── vector helpers ──
 function sub3(a: Vec3, b: Vec3): Vec3 {
   return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
@@ -60,10 +68,11 @@ function cross3(a: Vec3, b: Vec3): Vec3 {
 function length3(v: Vec3): number {
   return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
-function getVoxelView(volume: VolumeData): Int16Array | Uint16Array {
+function getVoxelView(volume: VolumeDataView): Int16Array | Uint16Array {
+  const byteOffset = volume.byteOffset ?? 0;
   return volume.dataType === 'int16'
-    ? new Int16Array(volume.buffer)
-    : new Uint16Array(volume.buffer);
+    ? new Int16Array(volume.buffer, byteOffset, volume.dataLength)
+    : new Uint16Array(volume.buffer, byteOffset, volume.dataLength);
 }
 
 /** Full 3D trilinear interpolation (mm 단위 입력은 voxel 좌표로 변환됨) */
@@ -325,7 +334,7 @@ export class ArchPresser {
    *   3) surface normal = in-plane perpendicular (x,y 평면에서 curve 수직)
    *   4) 각 (u, v)에서 normal 방향으로 ray-sum (axis-aligned marching)
    */
-  extract(curve: IPanoramicCurve, volume: VolumeData): ArchPresserResult {
+  extract(curve: CurveSampler, volume: VolumeDataView): ArchPresserResult {
     const view = getVoxelView(volume);
     const dims = volume.dimensions;
     const spacing = volume.spacing;
@@ -362,6 +371,36 @@ export class ArchPresser {
 
     const out = new Float32Array(hp * wp);
 
+    // Curve geometry depends only on the output column, not the depth row.
+    const columnX = new Float64Array(wp);
+    const columnY = new Float64Array(wp);
+    const columnNormalX = new Float64Array(wp);
+    const columnNormalY = new Float64Array(wp);
+    let segIdx = 0;
+    for (let u = 0; u < wp; u++) {
+      const arcU = u * this._pixelSize;
+      while (segIdx < N - 1 && arcLen[segIdx + 1] < arcU) segIdx++;
+
+      const nextSegIdx = Math.min(segIdx + 1, N - 1);
+      const segStart = arcLen[segIdx];
+      const segEnd = segIdx < N - 1 ? arcLen[nextSegIdx] : segStart + this._pixelSize;
+      const segLen = segEnd - segStart;
+      const localT = segLen > 0 ? (arcU - segStart) / segLen : 0;
+      columnX[u] = xs[segIdx] + (xs[nextSegIdx] - xs[segIdx]) * localT;
+      columnY[u] = ys[segIdx] + (ys[nextSegIdx] - ys[segIdx]) * localT;
+
+      const dx_ds = (xs[nextSegIdx] - xs[segIdx]) * (px / Math.max(segLen, 1e-9));
+      const dy_ds = (ys[nextSegIdx] - ys[segIdx]) * (py / Math.max(segLen, 1e-9));
+      const nx = -dy_ds / px;
+      const ny = dx_ds / py;
+      const nLen = Math.sqrt(nx * nx + ny * ny);
+      columnNormalX[u] = nLen > 1e-9 ? nx / nLen : 0;
+      columnNormalY[u] = nLen > 1e-9 ? ny / nLen : 0;
+    }
+
+    const avgSpacing = (px + py + pz) / 3;
+    const thicknessVox = this._thickness / avgSpacing;
+
     // 3) 각 (u, v)마다 ray-sum
     // z 반전: CBCT z=0은 보통 하악(chin) 방향, z=dz-1은 머리 위쪽.
     // 파노라마 이미지의 v=0(상단)이 머리 위쪽, v=hp-1(하단)이 턱이 되도록 반전.
@@ -369,42 +408,25 @@ export class ArchPresser {
       const zVox = (dz - 1) - (depthStartMm + v * this._pixelSize) / pz;  // depth(mm) → voxel z (inverted)
 
       for (let u = 0; u < wp; u++) {
-        const arcU = u * this._pixelSize;
-
-        // arc length u에 해당하는 curve segment 찾기 + (x, y) 선형 보간
-        let segIdx = 0;
-        while (segIdx < N - 1 && arcLen[segIdx + 1] < arcU) segIdx++;
-        const segStart = arcLen[segIdx];
-        const segEnd = segIdx < N - 1 ? arcLen[segIdx + 1] : segStart + this._pixelSize;
-        const segLen = segEnd - segStart;
-        const localT = segLen > 0 ? (arcU - segStart) / segLen : 0;
-        const xCurve = xs[segIdx] + (xs[Math.min(segIdx + 1, N - 1)] - xs[segIdx]) * localT;
-        const yCurve = ys[segIdx] + (ys[Math.min(segIdx + 1, N - 1)] - ys[segIdx]) * localT;
-
         // surface position (developable: x,y from curve, z from v)
-        const pxPos = xCurve;
-        const pyPos = yCurve;
+        const pxPos = columnX[u];
+        const pyPos = columnY[u];
         const pzPos = zVox;
 
-        // normal: in-plane perpendicular to curve in (x,y) plane
-        // d(curve)/du = (dx/ds, dy/ds, 0) at this segment
-        const dx_ds = (xs[Math.min(segIdx + 1, N - 1)] - xs[segIdx]) * (px / Math.max(segLen, 1e-9));
-        const dy_ds = (ys[Math.min(segIdx + 1, N - 1)] - ys[segIdx]) * (py / Math.max(segLen, 1e-9));
-        // normal in (x,y): (-dy_ds, dx_ds, 0) (rotated 90°)
-        // normalize in voxel units (per axis)
-        const nx = -dy_ds / px;
-        const ny =  dx_ds / py;
-        const nz = 0;
-        const nLen = Math.sqrt(nx * nx + ny * ny);
-        const nxn = nLen > 1e-9 ? nx / nLen : 0;
-        const nyn = nLen > 1e-9 ? ny / nLen : 0;
-        const nzn = 0;
-
-        // thickness in voxel units (use average spacing for cross-axis comparison)
-        const avgSpacing = (px + py + pz) / 3;
-        const thicknessVox = this._thickness / avgSpacing;
-
-        const val = rayMarchAxisAligned(view, dx, dy, dz, pxPos, pyPos, pzPos, nxn, nyn, nzn, thicknessVox, this._mode);
+        const val = rayMarchAxisAligned(
+          view,
+          dx,
+          dy,
+          dz,
+          pxPos,
+          pyPos,
+          pzPos,
+          columnNormalX[u],
+          columnNormalY[u],
+          0,
+          thicknessVox,
+          this._mode,
+        );
         out[v * wp + u] = val;
       }
     }
