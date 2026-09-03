@@ -7,11 +7,30 @@ export interface PreparedCurve {
   totalArcLengthMm: number;
 }
 
+export function advanceCurveSegment(
+  arcLengthMm: Float32Array,
+  targetArcLengthMm: number,
+  segmentIndex: number,
+): number {
+  const finalSegmentIndex = arcLengthMm.length - 2;
+  while (
+    segmentIndex < finalSegmentIndex
+    && arcLengthMm[segmentIndex + 1] < targetArcLengthMm
+  ) {
+    segmentIndex++;
+  }
+  return segmentIndex;
+}
+
 export function prepareCurveSamples(
   curve: CprCurve,
   volume: CprVolume,
   sampleCount: number,
 ): PreparedCurve {
+  if (!Number.isFinite(sampleCount) || !Number.isInteger(sampleCount) || sampleCount < 2) {
+    throw new Error('Sample count must be a finite integer of at least 2');
+  }
+
   const x = new Float32Array(sampleCount);
   const y = new Float32Array(sampleCount);
   const arcLengthMm = new Float32Array(sampleCount);

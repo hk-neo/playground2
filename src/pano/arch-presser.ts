@@ -22,6 +22,7 @@
  */
 import type { VolumeData } from '../shared/types/volume';
 import type { Vec3 } from '../shared/types/core';
+import { advanceCurveSegment } from '../cpr/curve-samples';
 
 const DEFAULT_SAMPLE_COUNT = 512; // arc length 계산용 curve resample 수
 const DEFAULT_THICKNESS = 20.0;   // mm
@@ -379,7 +380,7 @@ export class ArchPresser {
     let segIdx = 0;
     for (let u = 0; u < wp; u++) {
       const arcU = u * this._pixelSize;
-      while (segIdx < N - 1 && arcLen[segIdx + 1] < arcU) segIdx++;
+      segIdx = advanceCurveSegment(arcLen, arcU, segIdx);
 
       const nextSegIdx = Math.min(segIdx + 1, N - 1);
       const segStart = arcLen[segIdx];

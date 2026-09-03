@@ -95,6 +95,48 @@ describe('CpuCprBackend', () => {
     },
   );
 
+  it('preserves output at and beyond the volume boundary', () => {
+    const boundaryDimensions = [4, 4, 3] as const;
+    const data = new Int16Array(
+      boundaryDimensions[0] * boundaryDimensions[1] * boundaryDimensions[2],
+    );
+    for (let z = 0; z < boundaryDimensions[2]; z++) {
+      for (let y = 0; y < boundaryDimensions[1]; y++) {
+        for (let x = 0; x < boundaryDimensions[0]; x++) {
+          data[z * 16 + y * 4 + x] = z * 100 + y * 10 + x;
+        }
+      }
+    }
+    const boundaryCurve: CprCurve = {
+      points: [
+        { x: -1, y: 0, z: 0 },
+        { x: 3, y: 0, z: 0 },
+      ],
+      sample: (t) => ({ x: -1 + 4 * t, y: 0, z: 0 }),
+    };
+    const backend = new CpuCprBackend();
+    backend.setVolume({
+      data,
+      dimensions: boundaryDimensions,
+      spacing: [1, 1, 1],
+    });
+
+    const result = backend.extract(boundaryCurve, {
+      thickness: 1,
+      pixelSize: 1,
+      mode: 'sum',
+      depthRangeMm: [0, 3],
+    });
+
+    expect(result.width).toBe(3);
+    expect(result.height).toBe(3);
+    expect([...result.data]).toEqual([
+      0, 410, 412,
+      0, 210, 212.00001525878906,
+      0, 10.000003814697266, 12.000011444091797,
+    ]);
+  });
+
   it('keeps a zero-copy reference to an offset volume view', () => {
     const voxelCount = dimensions[0] * dimensions[1] * dimensions[2];
     const backing = new Int16Array(voxelCount + 4);

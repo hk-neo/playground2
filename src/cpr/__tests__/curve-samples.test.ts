@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { prepareCurveSamples } from '../curve-samples';
+import { advanceCurveSegment, prepareCurveSamples } from '../curve-samples';
 import type { CprCurve, CprVolume } from '../types';
 
 const volume: CprVolume = {
@@ -42,22 +42,23 @@ describe('prepareCurveSamples', () => {
     expect(prepared.totalArcLengthMm).toBeCloseTo(expectedLengthMm, 5);
   });
 
-  it('supports monotonically advancing segment lookup', () => {
-    const prepared = prepareCurveSamples(curve, volume, 512);
+  it.each([1, 0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects invalid sample count %s',
+    (sampleCount) => {
+      expect(() => prepareCurveSamples(curve, volume, sampleCount))
+        .toThrow('Sample count must be a finite integer of at least 2');
+    },
+  );
+
+  it('advances through expected segments and reaches the final segment', () => {
+    const arcLengthMm = new Float32Array([0, 1, 3, 6]);
     let segmentIndex = 0;
-    let previousSegmentIndex = 0;
+    const progression = [0, 1.01, 3.01, 6].map((targetArcLengthMm) => {
+      segmentIndex = advanceCurveSegment(arcLengthMm, targetArcLengthMm, segmentIndex);
+      return segmentIndex;
+    });
 
-    for (let column = 0; column < 128; column++) {
-      const arcLengthMm = column * prepared.totalArcLengthMm / 128;
-      while (
-        segmentIndex < prepared.arcLengthMm.length - 1
-        && prepared.arcLengthMm[segmentIndex + 1] < arcLengthMm
-      ) {
-        segmentIndex++;
-      }
-
-      expect(segmentIndex).toBeGreaterThanOrEqual(previousSegmentIndex);
-      previousSegmentIndex = segmentIndex;
-    }
+    expect(progression).toEqual([0, 1, 2, 2]);
+    expect(advanceCurveSegment(arcLengthMm, 1, 2)).toBe(2);
   });
 });
